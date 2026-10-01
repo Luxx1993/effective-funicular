@@ -1,6 +1,6 @@
 # Tally – Strichlisten-Zähler für den Rabbit R1
 
-Einfache Creation (eine Datei, `index.html`, keine Abhängigkeiten) für den 240×282-px-Bildschirm.
+Einfache Creation (eine Datei, `index-v0.1.1.html`, keine Abhängigkeiten) für den 240×282-px-Bildschirm.
 Referenz: `docs/r1-creations.md`.
 
 ## Bedienung
@@ -26,7 +26,7 @@ Tastatur-Vorschau: ↑ = scrollUp, ↓ = scrollDown, Enter = sideClick, R = long
 
 1. Repository auf GitHub pushen.
 2. *Settings → Pages → Build and deployment*: Source „Deploy from a branch“, Branch wählen (z. B. `main`), Ordner `/ (root)`.
-3. Nach kurzer Zeit erreichbar unter `https://<user>.github.io/<repo>/index.html` (HTTPS).
+3. Nach kurzer Zeit erreichbar unter `https://<user>.github.io/<repo>/index-v0.1.1.html` (HTTPS).
 
 ## Installieren
 
@@ -38,11 +38,11 @@ python3 make_qr.py --url https://<user>.github.io/<repo>/index.html
 
 Das Skript gibt das Install-JSON aus und schreibt `qr.png`. Auf dem R1:
 **Creations-Karte → „add via QR code“ → QR scannen.**
-(`icon.png` muss neben `index.html` mit gehostet sein; sonst `--icon-url` angeben.)
+(`icon.png` muss neben `index-v0.1.1.html` mit gehostet sein; sonst `--icon-url` angeben.)
 
 ## Aktualisieren
 
-1. `APP_VERSION` in `index.html` erhöhen.
+1. `APP_VERSION` in `index-v0.1.1.html` erhöhen.
 2. Kopie unter neuem Namen anlegen: `cp index.html index-v0.1.1.html`, committen, pushen.
 3. Die alte Karte auf dem R1 **deinstallieren**.
 4. QR mit der versionierten URL neu erzeugen:
