@@ -29,9 +29,11 @@ const MOTIONS: Record<string, Mo> = {
   celebrate: plugin('celebrate'), dance: plugin('dance'),
   wave: plugin('wave'), shrug: plugin('shrug'), spin: plugin('spin'),
   // the pet's own moods, built from the same model
-  sad: { frames: 8, dur: 3, pose: t => ({ yaw: YAW * 0.3, crouch: 0.25 + 0.05 * sinv(t), pitch: 0.2, armL: -0.1, armR: -0.1, sq: 1 + 0.015 * sinv(t), eyes: 'sad' }) },
+  // skipping rope: a hop per turn, arms out at the sides to hold the rope
+  rope: { frames: 8, dur: 0.7, pose: t => { const up = Math.sin(Math.PI * t); return { yaw: YAW * 0.3, hop: up * 2.6, crouch: 0.22 * (1 - up), armL: 0.75, armR: 0.75, walk: Math.PI * 2 * t, stride: 0.3 * up, sq: 1 + 0.06 * up, eyes: 'happy' as const } } },
+  // whistling a tune: eyes shut, a gentle sway
+  whistle: { frames: 8, dur: 1.6, pose: t => ({ yaw: YAW * 0.5 + 0.1 * sinv(t), pitch: -0.08, roll: 0.05 * sinv(t), sq: 1 + 0.03 * sinv(2 * t), armL: 0.1, armR: 0.1, eyes: Math.sin(Math.PI * 2 * t * 2) > 0.7 ? 'happy' as const : 'closed' as const }) },
   happy: { frames: 8, dur: 1.2, pose: t => ({ yaw: YAW * 0.6, hop: Math.abs(sinv(t / 2)) * 0.5, roll: 0.03 * sinv(t), armL: 0.2 + 0.2 * sinv(t), armR: 0.2 - 0.2 * sinv(t), eyes: 'happy' }) },
-  eat: { frames: 8, dur: 0.8, pose: t => ({ yaw: YAW * 0.5, crouch: 0.15 * Math.abs(sinv(t)), pitch: 0.12 * sinv(t), armL: 0.9, armR: 0.9, liftL: 1.2, liftR: 1.2, eyes: Math.sin(Math.PI * 2 * t) > 0.6 ? 'closed' : 'happy' }) },
   dizzy: { frames: 8, dur: 0.9, pose: t => ({ yaw: YAW * 0.4, dx: 0.5 * sinv(t), roll: 0.12 * sinv(t), armL: 0.5, armR: 0.5, hop: 0.2 * Math.abs(sinv(2 * t)), eyes: 'dizzy' }) },
   pet: { frames: 6, dur: 1, pose: t => ({ yaw: YAW * 0.4, crouch: 0.12, roll: 0.05 * sinv(t), sq: 1 + 0.03 * sinv(t), eyes: 'happy', armL: 0.2, armR: 0.2 }) },
 }
