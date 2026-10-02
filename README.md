@@ -1,7 +1,7 @@
 # Tally – Strichlisten-Zähler für den Rabbit R1
 
 Einfache Creation (eine Datei, `index-v0.1.1.html`, keine Abhängigkeiten) für den 240×282-px-Bildschirm.
-Referenz: `docs/r1-creations.md`.
+Referenz: `docs/r1-creations.md`. Diese Creation lebt auf dem Branch `creation/tally` und wird unter `/tally/` ausgeliefert.
 
 ## Bedienung
 
@@ -26,14 +26,14 @@ Tastatur-Vorschau: ↑ = scrollUp, ↓ = scrollDown, Enter = sideClick, R = long
 
 1. Repository auf GitHub pushen.
 2. *Settings → Pages → Build and deployment*: Source „Deploy from a branch“, Branch wählen (z. B. `main`), Ordner `/ (root)`.
-3. Nach kurzer Zeit erreichbar unter `https://<user>.github.io/<repo>/index-v0.1.1.html` (HTTPS).
+3. Nach kurzer Zeit erreichbar unter `https://<user>.github.io/<repo>/tally/index-v0.1.1.html` (HTTPS).
 
 ## Installieren
 
 ```bash
 pip install pillow qrcode
 python3 make_icon.py          # erzeugt icon.png (96×96)
-python3 make_qr.py --url https://<user>.github.io/<repo>/index.html
+python3 make_qr.py --url https://<user>.github.io/<repo>/tally/index.html
 ```
 
 Das Skript gibt das Install-JSON aus und schreibt `qr.png`. Auf dem R1:
@@ -46,5 +46,5 @@ Das Skript gibt das Install-JSON aus und schreibt `qr.png`. Auf dem R1:
 2. Kopie unter neuem Namen anlegen: `cp index.html index-v0.1.1.html`, committen, pushen.
 3. Die alte Karte auf dem R1 **deinstallieren**.
 4. QR mit der versionierten URL neu erzeugen:
-   `python3 make_qr.py --url https://<user>.github.io/<repo>/index-v0.1.1.html`
+   `python3 make_qr.py --url https://<user>.github.io/<repo>/tally/index-v0.1.1.html`
 5. Neuen QR scannen.
