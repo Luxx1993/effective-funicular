@@ -22,9 +22,9 @@ Die Seite `https://luxx1993.github.io/effective-funicular/` listet alle Creation
 
 Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
 
-![Install-QR für Tally](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/tally/qr.png)
+[![Install-QR für Tally – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/tally/qr.png)](https://github.com/Luxx1993/effective-funicular/tree/creation/tally)
 
-(Bild liegt auf dem Branch `creation/tally`; es ist immer der aktuelle Code der Creation.)
+(Ein Klick auf das Bild öffnet den Branch `creation/tally` mit Screenshots und Beschreibung. Das Bild ist immer der aktuelle Code der Creation.)
 
 ## Neue Creation anlegen
 
