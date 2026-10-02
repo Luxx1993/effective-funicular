@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.7.1';
+const APP_VERSION = '0.7.2';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -529,22 +529,29 @@ function drawMenu() {
   }
 }
 
-// the picker: in the menu's strip; each column shows only its chosen value, and the wheel rolls it like a rolodex card
+// the picker: in the menu's strip, as text on strips: "Ort [Wald]  Stil [Kupferstich]"; the wheel rolls the chosen value like a rolodex card
 function drawPanel() {
-  const cols = PANELS[R.panel], uw = W - INL - INR, cw = uw / cols.length, cy = PY + 25;
+  const cols = PANELS[R.panel], uw = W - INL - INR, cw = uw / cols.length, one = cols.length === 2;
   strip(0, PY, W, H - PY);
   cols.forEach((c, ci) => {
-    const x0 = INL + ci * cw, on = ci === R.prow, k = R.pk[ci], list = c.list(), n = list.length;
-    txt(c.label, x0 + cw / 2, PY + 8, { size: 7, halo: true, align: 'center', alpha: on ? 1 : .55 });
-    strip(x0 + 3, cy - 9, cw - 6, 18, on);
-    ctx.save(); ctx.beginPath(); ctx.rect(x0 + 3, cy - 9, cw - 6, 18); ctx.clip();       // cards roll in and out of the band only
+    const x0 = INL + ci * cw, on = ci === R.prow, k = R.pk[ci], list = c.list(), n = list.length, a = on ? 1 : .7;
+    if (on) strip(x0 + 1, PY + 3, cw - 2, MENU_H - 6, true);
+    let vx0, vx1, cy;
+    if (one) {                                   // label and value on one line
+      txt(c.label, x0 + 8, PY + MENU_H / 2, { size: 8, halo: true, alpha: a * .8 });
+      vx0 = x0 + 8 + textW(c.label, 8) + 6; vx1 = x0 + cw - 6; cy = PY + MENU_H / 2;
+    } else { txt(c.label, x0 + cw / 2, PY + 9, { size: 7, halo: true, align: 'center', alpha: a * .8 }); vx0 = x0 + 5; vx1 = x0 + cw - 5; cy = PY + 25; }
+    txt('[', vx0, cy, { size: 9, halo: true, alpha: a });
+    txt(']', vx1, cy, { size: 9, halo: true, align: 'right', alpha: a });
+    const ix0 = vx0 + 6, ix1 = vx1 - 7, mx = (ix0 + ix1) / 2;
+    ctx.save(); ctx.beginPath(); ctx.rect(ix0, cy - 9, ix1 - ix0, 18); ctx.clip();       // cards roll in and out of the brackets only
     const base = Math.round(k.pos);
     for (let d = -1; d <= 1; d++) {
       const o = base + d - k.pos, ang = o * .95;
       if (Math.abs(ang) > 1.4) continue;
       const sc = Math.cos(ang), y = cy + Math.sin(ang) * 17;
-      ctx.save(); ctx.translate(x0 + cw / 2, y); ctx.scale(1, Math.max(.05, sc));
-      txt(list[mod(base + d, n)], 0, 0, { size: 9.5, maxW: cw - 10, halo: true, align: 'center', alpha: clamp(sc * 1.2, 0, 1) * (on ? 1 : .75) });
+      ctx.save(); ctx.translate(mx, y); ctx.scale(1, Math.max(.05, sc));
+      txt(list[mod(base + d, n)], 0, 0, { size: 9.5, maxW: ix1 - ix0, halo: true, align: 'center', alpha: clamp(sc * 1.2, 0, 1) * a });
       ctx.restore();
     }
     ctx.restore();
