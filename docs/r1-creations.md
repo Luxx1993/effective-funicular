@@ -466,6 +466,16 @@ Voice: for speech input the community uses either the PTT long-press flow (see t
 - **Hosting layout:** this repo serves every `creation/<name>` branch under `/<name>/` via a GitHub Actions Pages deploy (see README.md). All creations share one origin, so namespace storage keys.
 - **On-screen debug tag** (version plus storage/sensor status) was the fastest way to debug on the device; photograph the screen. Remove it for release.
 
+## 11c. Notes from the Clawd creation (built in a desktop browser, **not yet verified on a real R1**)
+
+- **Rolodex picker and rotation are plain canvas code.** Everything is drawn into one `<canvas>`; the Tally auto-rotation (CSS-rotated element, swapped size, hysteresis) works the same: the canvas becomes 282x240 sideways, touch points must be mapped back through the rotation, and the OS bar (always on the device's top edge) eats 40 px of whichever canvas edge that is.
+- **Wheel plus side button as a two-level control.** The wheel does one job (steer the pet); a side click switches it to menu selection and a second click runs the item. Sliding `[ ]` brackets mark what the wheel is on.
+- **Pre-rendered assets instead of live SVG.** Heavy art (scenery, character sprites) is baked once with Chromium into WebP images (scenery 800x320, sprite sheet per style). The device only does `drawImage`. Keep one scenery and one sheet in memory and load the next on demand. Sheets must be rendered with the style's SVG `<defs>` (gradients), otherwise shapes come out unfilled.
+- **Accessories ride on baked anchors.** For every animation frame the generator also exports where head top, eyes and body are; hats and glasses are drawn at those points, mirrored with the sprite.
+- **Keep the scenery exactly screen-high.** Cropping a strip leaves a gap at the bottom; scale the crop to fill the height instead of stretching its last row.
+- **Fonts:** only generic families are safe on the device. Embedded WOFF2 (Monocraft, base64) works in canvas after `document.fonts.load`; style-specific fonts fall back to `serif`/`sans-serif`.
+- **Pixel art on canvas:** draw at low resolution, threshold the alpha channel to remove half-transparent edges, then scale up with smoothing off, otherwise it looks blurry.
+
 ## 12. Open questions and known gaps
 
 **Still open**
