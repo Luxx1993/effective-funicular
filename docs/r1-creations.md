@@ -474,6 +474,7 @@ Voice: for speech input the community uses either the PTT long-press flow (see t
 - **Accessories ride on baked anchors.** For every animation frame the generator also exports where head top, eyes and body are; hats and glasses are drawn at those points, mirrored with the sprite.
 - **Keep the scenery exactly screen-high.** Cropping a strip leaves a gap at the bottom; scale the crop to fill the height instead of stretching its last row.
 - **Fonts:** only generic families are safe on the device. Embedded WOFF2 (Monocraft, base64) works in canvas after `document.fonts.load`; style-specific fonts fall back to `serif`/`sans-serif`.
+- **Sound without files (WebAudio, not yet verified on a real R1):** oscillators and noise bursts are enough for voice blips, snoring, a whistle, ball hits and a looping melody per style. An `AudioContext` starts suspended: create/resume it in a user gesture (touch, button event) and suspend it on `visibilitychange`.
 - **Pixel art on canvas:** draw at low resolution, threshold the alpha channel to remove half-transparent edges, then scale up with smoothing off, otherwise it looks blurry.
 
 ## 12. Open questions and known gaps
