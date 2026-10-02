@@ -5,7 +5,7 @@ Every remote branch `creation/<name>` is exported to `<out>/<name>/` (without
 docs and tooling files). If the branch has a creation.json
 ({"title","description","version","entry"}) it is listed on the hub page.
 """
-import argparse, html, json, os, shutil, subprocess, tarfile, io
+import argparse, base64, html, json, os, shutil, subprocess, tarfile, io
 
 SKIP = {".git", ".github", "docs", "tools", "CLAUDE.md", "README.md", "creation.json"}
 
@@ -51,7 +51,9 @@ for name, title, desc, ver, entry, icon, qr in cards:
     items += f'<p>{html.escape(desc)}</p><p><a href="{name}/{entry}">Open</a>'
     items += f' · <a href="{name}/qr.png">Install QR</a>' if qr else ""
     items += '</p></div>'
-    items += f'<img class="qr" src="{name}/qr.png" alt="Install QR for {html.escape(title)}" width="120" height="120">' if qr else ""
+    if qr:  # embedded, so the QR shows even if the file path is wrong
+        data = base64.b64encode(open(os.path.join(a.out, name, "qr.png"), "rb").read()).decode()
+        items += f'<img class="qr" src="data:image/png;base64,{data}" alt="Install QR for {html.escape(title)}" width="120" height="120">'
     items += '</li>\n'
 if not items:
     items = "<li>No creations yet.</li>"
