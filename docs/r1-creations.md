@@ -463,6 +463,7 @@ Voice: for speech input the community uses either the PTT long-press flow (see t
 - **The OS draws a top bar** ("back", clock, battery) over the top of the page area. Keep important content clear of the top ~40 px.
 - **A creation is a WebView, not a browser.** If the install URL returns a 404, the R1 simply renders the host's 404/docs page (GitHub Pages showed its docs). No address bar, tabs or free URL entry exist. An OS keyboard appears for text inputs.
 - **Updating:** the R1 caches the install URL. Publish a new versioned file, uninstall the old card, scan the new QR. Pages must serve the branch containing that file, or the QR gives a 404.
+- **Hosting layout:** this repo serves every `creation/<name>` branch under `/<name>/` via a GitHub Actions Pages deploy (see README.md). All creations share one origin, so namespace storage keys.
 - **On-screen debug tag** (version plus storage/sensor status) was the fastest way to debug on the device; photograph the screen. Remove it for release.
 
 ## 12. Open questions and known gaps
