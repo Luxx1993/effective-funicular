@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.9.1';
+const APP_VERSION = '0.10.0';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -30,7 +30,7 @@ let MENU_Y = 246;                   // the menu strip over the bottom of the sce
 const BGS = MANI.bgscale;           // scenery image px per stage unit, shown 1:1
 const BGW = MANI.sw * BGS, BGH = MANI.h * BGS;   // 800 x 320: a long strip Clawd walks along
 const BG_YOFF = 55;                 // crop the sky so the floor line sits near y 205
-let BGF, WORLD, ITEM_W, PH, PY;   // set by layout(): the cropped scenery fills the height exactly, WORLD is the width Clawd walks in
+let BGF, WORLD, ITEM_W, PH, PY;   // set by layout(): the cropped scenery fills the height exactly, WORLD is the width of one picture (the world repeats forever)
 const K = 0.95 * 1.1;               // Clawd sheet px -> logical px
 const CELLW = MANI.cw * MANI.scale, CELLH = MANI.ch * MANI.scale;
 const SCENES = ['forest', 'space', 'city', 'desert', 'volcano', 'lab', 'night'];
@@ -71,7 +71,6 @@ function setRot(deg) {
   rot = next; layout();
   const f = WORLD / oldWorld;
   R.x *= f; R.cam *= f; R.target *= f;
-  R.cam = clamp(R.cam, 0, WORLD - W);
   if (R.ambScene) makeAmbient();
 }
 function orient(d) {
@@ -327,13 +326,13 @@ const AMB = {
 function makeAmbient() {
   const d = AMB[S.scene]; R.ambScene = S.scene; R.amb = [];
   for (let i = 0; i < d.n; i++)
-    R.amb.push({ x: rnd(0, WORLD), y: d.top ? rnd(TOP, TOP + 90) : rnd(TOP + 20, MENU_Y - 6), vx: rnd(d.vx[0], d.vx[1]), vy: rnd(d.vy[0], d.vy[1]), ph: rnd(0, 6) });
+    R.amb.push({ x: rnd(0, W + 40), y: d.top ? rnd(TOP, TOP + 90) : rnd(TOP + 20, MENU_Y - 6), vx: rnd(d.vx[0], d.vx[1]), vy: rnd(d.vy[0], d.vy[1]), ph: rnd(0, 6) });
 }
 function updateAmbient(dt) {
   const d = AMB[R.ambScene]; if (!d) return;
   for (const a of R.amb) {
     a.x += a.vx * dt; a.y += a.vy * dt; a.ph += dt * 2;
-    if (a.x < 0) a.x += WORLD; if (a.x > WORLD) a.x -= WORLD;
+    a.x = mod(a.x, W + 40);
     if (a.y < TOP) a.y = MENU_Y - 12; if (a.y > MENU_Y - 6) a.y = d.top ? TOP + 4 : TOP + 10;
   }
 }
@@ -341,7 +340,7 @@ function drawAmbient(cam) {
   const d = AMB[R.ambScene]; if (!d) return;
   for (const a of R.amb) {
     ctx.globalAlpha = d.a * (d.twinkle ? 0.35 + 0.65 * Math.abs(Math.sin(a.ph)) : 1);
-    rect(a.x - cam, a.y, d.s, d.len || d.s, 'rgb(' + d.col + ')');
+    rect(mod(a.x - cam, W + 40) - 20, a.y, d.s, d.len || d.s, 'rgb(' + d.col + ')');
   }
   ctx.globalAlpha = 1;
 }
@@ -388,7 +387,7 @@ function act(i) {
   if (i === 2) return openPanel('items');
   if (i === 3) return openPanel('world');
   if (busyNow()) return;
-  if (i === 0) setMode('play', { bounces: 0, cx: clamp(R.x, 100, WORLD - 100) });
+  if (i === 0) setMode('play', { bounces: 0, cx: R.x });
   else { R.sleeping = true; setMode('sleep'); say('Gute Nacht…'); }
 }
 // pickers: each column is an endless drum (rolodex) that rolls to its value
@@ -443,7 +442,9 @@ function update(dt) {
   // the camera follows only when Clawd gets near the edge of the screen, so he really walks across the scenery
   const sx = R.x - R.cam;
   if (sx < 70) R.cam = R.x - 70; else if (sx > W - 70) R.cam = R.x - (W - 70);
-  R.cam = clamp(R.cam, 0, WORLD - W);
+  // the world is endless: the scenery repeats (mirrored, so there is no seam), so keep the numbers small by shifting whole periods
+  const per = 2 * WORLD, kk = Math.floor(R.cam / per);
+  if (Math.abs(kk) >= 2) { R.x -= kk * per; R.cam -= kk * per; R.target -= kk * per; if (R.cx != null) R.cx -= kk * per; }
   if (R.menuOn && R.time - R.menuT > 5) R.menuOn = false;
   // the drums roll to their values
   if (R.panel) rollUpdate(dt);
@@ -466,8 +467,7 @@ function update(dt) {
       const r = Math.random();
       if (Math.random() < .3) say(pick(QUIPS));
       if (r < .62) {
-        R.target = clamp(R.x + (Math.random() < .5 ? -1 : 1) * rnd(90, 280), 40, WORLD - 40);
-        if (Math.abs(R.target - R.x) < 40) R.target = R.x < WORLD / 2 ? R.x + 200 : R.x - 200;
+        R.target = R.x + (Math.random() < .5 ? -1 : 1) * rnd(90, 280);
         R.fast = false; setMode('walk');
       } else if (r < .72) startAct('wave', 1.6);
       else if (r < .82) startAct('spin', 1.2);
@@ -483,7 +483,7 @@ function update(dt) {
   } else if (m === 'act') {
     if (R.t > R.act.dur) idle(1.2);
   } else if (m === 'play') {
-    const nx = clamp(R.cx + Math.sin(R.t * 1.5) * 60, 40, WORLD - 40);
+    const nx = R.cx + Math.sin(R.t * 1.5) * 60;
     R.look = Math.sign(nx - R.x) || R.look; R.x = nx;
     if (R.t >= 4.2) { say('Das war toll!'); startAct('happy', 1.4); }
   } else if (m === 'sleep') {
@@ -618,9 +618,13 @@ function draw() {
   // scenery over the full height
   if (R.bg) {
     ctx.imageSmoothingEnabled = S.look !== 'pixel';
-    const iw = R.bg.naturalWidth, ih = R.bg.naturalHeight, k = iw / WORLD, y0 = BG_YOFF * iw / BGW;
-    ctx.drawImage(R.bg, cam * k, y0, W * k, ih - y0, 0, 0, W, H);
-    if (R.lift > .5) ctx.drawImage(R.bg, cam * k, ih - 1, W * k, 1, 0, H - 1, W, R.lift + 2);   // lifted: carry the ground on under the picker
+    const iw = R.bg.naturalWidth, ih = R.bg.naturalHeight, y0 = BG_YOFF * iw / BGW, sh = ih - y0;
+    // endless: the picture, then its mirror image, then the picture again, ...
+    for (let t = Math.floor(R.cam / WORLD); t * WORLD < R.cam + W; t++) {
+      const x = Math.round(t * WORLD - R.cam), odd = ((t % 2) + 2) % 2 === 1;
+      if (odd) { ctx.save(); ctx.translate(x + Math.round(WORLD), 0); ctx.scale(-1, 1); ctx.drawImage(R.bg, 0, y0, iw, sh, 0, 0, Math.round(WORLD), H); ctx.restore(); }
+      else ctx.drawImage(R.bg, 0, y0, iw, sh, x, 0, Math.round(WORLD), H);
+    }
   } else rect(0, 0, W, H, '#101018');
 
   const fy = feetY(), c = drawClawd();
@@ -708,7 +712,7 @@ function wheel(d) {
   if (R.sleeping) return wake(false);
   if (R.mode === 'play' || R.mode === 'dizzy') return;
   const from = R.mode === 'walk' ? R.target : R.x;
-  R.target = clamp(from + d * 40, 40, WORLD - 40);
+  R.target = from + d * 40;
   R.look = d; R.fast = true;
   if (R.mode !== 'walk') setMode('walk');
 }
@@ -747,7 +751,7 @@ function down(e) {
   if (Math.abs(x - sx) < 44 && y > fy - 100 && y < fy + 8) { R.touchPet = true; R.touchT = R.time; R.touchX = x; return; }
   // a tap on the scenery: Clawd walks over there
   if (R.sleeping) return wake(false);
-  if (!busyNow() || R.mode === 'walk') { R.target = clamp(R.cam + x, 40, WORLD - 40); R.fast = false; setMode('walk'); R.look = Math.sign(R.target - R.x) || R.look; }
+  if (!busyNow() || R.mode === 'walk') { R.target = R.cam + x; R.fast = false; setMode('walk'); R.look = Math.sign(R.target - R.x) || R.look; }
 }
 function move(e) {
   if (!R.drag || !R.panel) return;
