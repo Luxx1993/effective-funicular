@@ -1,7 +1,23 @@
 # Tally – Strichlisten-Zähler für den Rabbit R1
 
-Einfache Creation (eine Datei, `index-v0.1.1.html`, keine Abhängigkeiten) für den 240×282-px-Bildschirm.
-Referenz: `docs/r1-creations.md`. Diese Creation lebt auf dem Branch `creation/tally` und wird unter `/tally/` ausgeliefert.
+Einfache Creation (eine Datei, `index.html`, keine Abhängigkeiten) für den 240×282-px-Bildschirm.
+Referenz: `docs/r1-creations.md` (auf `main`). Diese Creation lebt auf dem Branch `creation/tally`
+und wird unter `/tally/` ausgeliefert.
+
+## Screenshots
+
+| Zähler | Gedreht (Auto-Rotation) | Große Zahl |
+| --- | --- | --- |
+| ![Zähler](screenshots/counter.png) | ![Gedreht](screenshots/rotated.png) | ![Große Zahl](screenshots/big.png) |
+
+Screenshots stammen aus dem Desktop-Test (Chromium, 240×282 px, 2×); auf dem R1 kommt oben die
+System-Leiste („zurück“, Uhrzeit, Akku) dazu.
+
+## Installieren
+
+R1: Creations-Karte → „add via QR code“ → scannen.
+
+![Install-QR](qr.png)
 
 ## Bedienung
 
