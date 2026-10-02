@@ -17,7 +17,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.4.1';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -27,6 +27,8 @@ const MENU_Y = 246;                 // the menu strip over the bottom of the sce
 const BGS = MANI.bgscale;           // scenery image px per stage unit, shown 1:1
 const BGW = MANI.sw * BGS, BGH = MANI.h * BGS;   // 800 x 320: a long strip Clawd walks along
 const BG_YOFF = 55;                 // crop the sky so the floor line sits near y 205
+const BGF = H / (BGH - BG_YOFF);    // the cropped image is scaled to fill the screen height exactly
+const WORLD = BGW * BGF;            // width of the world Clawd walks in
 const K = 0.95 * 1.1;               // Clawd sheet px -> logical px
 const CELLW = MANI.cw * MANI.scale, CELLH = MANI.ch * MANI.scale;
 const SCENES = ['forest', 'space', 'city', 'desert', 'volcano', 'lab', 'night'];
@@ -57,7 +59,7 @@ const R = {
   bg: null, sheet: null, bgKey: '', sheetKey: '', anim: '', animT0: 0, act: null,
   panel: null, prow: 0, amb: [], ambScene: '',
 };
-const floorY = () => MANI.floors[S.scene] * BGS - BG_YOFF;
+const floorY = () => (MANI.floors[S.scene] * BGS - BG_YOFF) * BGF;
 const feetY = () => Math.min(floorY() + 14, MENU_Y - 10);
 const petting = () => (R.hold || (R.touchPet && R.time - R.touchT > .25)) && !R.sleeping && (R.mode === 'idle' || R.mode === 'walk') && !R.panel;
 const busyNow = () => !(R.mode === 'idle' || R.mode === 'walk');
@@ -260,13 +262,13 @@ const AMB = {
 function makeAmbient() {
   const d = AMB[S.scene]; R.ambScene = S.scene; R.amb = [];
   for (let i = 0; i < d.n; i++)
-    R.amb.push({ x: rnd(0, BGW), y: d.top ? rnd(TOP, TOP + 90) : rnd(TOP + 20, MENU_Y - 6), vx: rnd(d.vx[0], d.vx[1]), vy: rnd(d.vy[0], d.vy[1]), ph: rnd(0, 6) });
+    R.amb.push({ x: rnd(0, WORLD), y: d.top ? rnd(TOP, TOP + 90) : rnd(TOP + 20, MENU_Y - 6), vx: rnd(d.vx[0], d.vx[1]), vy: rnd(d.vy[0], d.vy[1]), ph: rnd(0, 6) });
 }
 function updateAmbient(dt) {
   const d = AMB[R.ambScene]; if (!d) return;
   for (const a of R.amb) {
     a.x += a.vx * dt; a.y += a.vy * dt; a.ph += dt * 2;
-    if (a.x < 0) a.x += BGW; if (a.x > BGW) a.x -= BGW;
+    if (a.x < 0) a.x += WORLD; if (a.x > WORLD) a.x -= WORLD;
     if (a.y < TOP) a.y = MENU_Y - 12; if (a.y > MENU_Y - 6) a.y = d.top ? TOP + 4 : TOP + 10;
   }
 }
@@ -320,7 +322,7 @@ function act(i) {
   if (i === 2) { R.panel = 'items'; R.prow = 0; return; }
   if (i === 3) { R.panel = 'world'; R.prow = 0; return; }
   if (busyNow()) return;
-  if (i === 0) setMode('play', { bounces: 0, cx: clamp(R.x, 100, BGW - 100) });
+  if (i === 0) setMode('play', { bounces: 0, cx: clamp(R.x, 100, WORLD - 100) });
   else { R.sleeping = true; setMode('sleep'); say('Gute Nacht…'); }
 }
 const PANELS = {
@@ -355,7 +357,7 @@ function update(dt) {
   // the camera follows only when Clawd gets near the edge of the screen, so he really walks across the scenery
   const sx = R.x - R.cam;
   if (sx < 70) R.cam = R.x - 70; else if (sx > W - 70) R.cam = R.x - (W - 70);
-  R.cam = clamp(R.cam, 0, BGW - W);
+  R.cam = clamp(R.cam, 0, WORLD - W);
   if (!ready || R.panel) return;
 
   const m = R.mode, fy = feetY();
@@ -374,8 +376,8 @@ function update(dt) {
       const r = Math.random();
       if (Math.random() < .3) say(pick(QUIPS));
       if (r < .62) {
-        R.target = clamp(R.x + (Math.random() < .5 ? -1 : 1) * rnd(90, 280), 40, BGW - 40);
-        if (Math.abs(R.target - R.x) < 40) R.target = R.x < BGW / 2 ? R.x + 200 : R.x - 200;
+        R.target = clamp(R.x + (Math.random() < .5 ? -1 : 1) * rnd(90, 280), 40, WORLD - 40);
+        if (Math.abs(R.target - R.x) < 40) R.target = R.x < WORLD / 2 ? R.x + 200 : R.x - 200;
         setMode('walk');
       } else if (r < .72) startAct('wave', 1.6);
       else if (r < .82) startAct('spin', 1.2);
@@ -391,7 +393,7 @@ function update(dt) {
   } else if (m === 'act') {
     if (R.t > R.act.dur) idle(1.2);
   } else if (m === 'play') {
-    const nx = clamp(R.cx + Math.sin(R.t * 1.5) * 60, 40, BGW - 40);
+    const nx = clamp(R.cx + Math.sin(R.t * 1.5) * 60, 40, WORLD - 40);
     R.look = Math.sign(nx - R.x) || R.look; R.x = nx;
     if (R.t >= 4.2) { say('Das war toll!'); startAct('happy', 1.4); }
   } else if (m === 'sleep') {
@@ -501,9 +503,8 @@ function draw() {
   // scenery over the full height; its bottom row is stretched down to the screen edge
   if (R.bg) {
     ctx.imageSmoothingEnabled = S.look !== 'pixel';
-    const iw = R.bg.naturalWidth, ih = R.bg.naturalHeight, k = iw / BGW, srcH = (BGH - BG_YOFF) * k;
-    ctx.drawImage(R.bg, cam * k, BG_YOFF * k, W * k, srcH, 0, 0, W, BGH - BG_YOFF);
-    if (BGH - BG_YOFF < H) ctx.drawImage(R.bg, cam * k, ih - 1, W * k, 1, 0, BGH - BG_YOFF - 1, W, H - (BGH - BG_YOFF) + 1);
+    const iw = R.bg.naturalWidth, ih = R.bg.naturalHeight, k = iw / WORLD, y0 = BG_YOFF * iw / WORLD;
+    ctx.drawImage(R.bg, cam * k, y0, W * k, ih - y0, 0, 0, W, H);
   } else rect(0, 0, W, H, '#101018');
 
   const fy = feetY(), c = drawClawd();
@@ -614,7 +615,7 @@ function down(e) {
   if (Math.abs(x - sx) < 44 && y > fy - 100 && y < fy + 8) { R.touchPet = true; R.touchT = R.time; R.touchX = x; return; }
   // a tap on the scenery: Clawd walks over there
   if (R.sleeping) return wake(false);
-  if (!busyNow() || R.mode === 'walk') { R.target = clamp(R.cam + x, 40, BGW - 40); setMode('walk'); R.look = Math.sign(R.target - R.x) || R.look; }
+  if (!busyNow() || R.mode === 'walk') { R.target = clamp(R.cam + x, 40, WORLD - 40); setMode('walk'); R.look = Math.sign(R.target - R.x) || R.look; }
 }
 function up(e) {
   e.preventDefault();
