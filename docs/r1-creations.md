@@ -467,17 +467,24 @@ Voice: for speech input the community uses either the PTT long-press flow (see t
 
 ## 12. Open questions and known gaps
 
+**Still open**
+
 - Exact behaviour of voice/STT inside creations (official page says unavailable; community apps report voice input working). Verify on device.
-- Whether `fetch` to external HTTPS backends is allowed in all firmware versions (official page says "hosted backend" unsupported; community projects do it).
+- Whether `fetch` to external HTTPS backends is allowed in all firmware versions (official page says "hosted backend" unsupported; community projects do it). Not yet tested with Tally; note that the WebView does render external pages (see 11b).
 - Which model answers `useLLM: true` requests, and whether OS3 BYOK changes that.
 - Official SDK docs were last updated Sep 2025 and may not cover newer rabbitOS / OS3 behaviour.
-- The official SDK repo (single commit "sneak-peek", 2025-09-08) was cloned and read directly: `qr/final/js/app.js`, `plugin-demo/js/{app,hardware,data,speak}.js`, `plugin-demo/index.html`, `README.md` and `reference/creation-triggers.md`. The QR JSON schema is therefore confirmed from rabbit's own tool.
-- Reference doc and demo code disagree on the accelerometer callback shape (`{x,y,z}` versus `tiltX/tiltY/tiltZ` plus `rawX/rawY/rawZ`). Section 3.6 handles both; confirm on a device.
-- The demo README describes persistent storage via `creationStorage.plain`, but the demo's own JS does not call it. The storage API shown in section 3.5 comes from the reference doc and from community creations that use it (Silksong map, apogee, chess), not from the demo code.
-- `PluginMessageHandler` payload fields beyond `message`, `useLLM`, `wantsR1Response`, `wantsJournalEntry` are not documented.
+- `PluginMessageHandler` payload fields beyond `message`, `useLLM`, `wantsR1Response`, `wantsJournalEntry` are not documented. Not tested with Tally.
+- Not tested on device yet: `longPressEnd`, `closeWebView`, `creationStorage.secure`, camera, microphone and speaker.
 - The community Tips & Tricks content was not retrieved (dynamic page).
-- A Silksong map creation was supplied as a QR image and analysed (see section 7, worked example). Its author is not known.
-- A "Map Explorer" listing and a "Post-its" creation by a user "simonb" were mentioned by the user but could not be located. The closest match found is AlanK's "Maps app for R1" (forum, no source). The forum user "simon" is a rabbit staff member; a "Post-its" creation was not found in forum or search results. Open the rabbit.tech/creations gallery on a computer, scan or open the creation's link, and have Claude Code read the hosted bundle to learn from it.
+- A "Map Explorer" listing and a "Post-its" creation by a user "simonb" were mentioned but could not be located. The closest match found is AlanK's "Maps app for R1" (forum, no source). The forum user "simon" is a rabbit staff member. Open the rabbit.tech/creations gallery on a computer, scan or open the creation's link, and have Claude Code read the hosted bundle to learn from it.
+- The author of the Silksong map creation (section 7) is not known.
+
+**Resolved (verified on a real R1 with Tally, see 11b)**
+
+- Accelerometer callback shape: the device sends `tiltX/tiltY/tiltZ` (about -1..1), as in the official demo. Keep the `x/y/z` and `rawX/rawY` fallbacks anyway. Axis signs differ from Android, so calibrate (see 11b).
+- `creationStorage.plain` with Base64 works and persists across closing the card, even though the official demo's own JS never calls it. It may appear after the page has loaded, so wait for it.
+- `scrollUp`, `scrollDown`, `sideClick`, `longPressStart` and `touchstart` on `document.body` work as documented.
+- The QR JSON schema (five fields, low error correction) is confirmed from rabbit's own QR tool (`creations-sdk/qr`, read directly from the repo) and a QR generated with it installed correctly.
 
 ## 13. Sources
 
