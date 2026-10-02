@@ -18,6 +18,14 @@ Die Seite `https://luxx1993.github.io/effective-funicular/` listet alle Creation
 | --- | --- | --- |
 | Tally | `creation/tally` | Strichlisten-Zähler mit Auto-Rotation |
 
+### Tally installieren
+
+Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
+
+![Install-QR für Tally](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/tally/qr.png)
+
+(Bild liegt auf dem Branch `creation/tally`; es ist immer der aktuelle Code der Creation.)
+
 ## Neue Creation anlegen
 
 ```bash
