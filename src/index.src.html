@@ -7,8 +7,9 @@
 <style>
   /*@FONT@*/
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-  body { display: flex; align-items: center; justify-content: center; }
-  canvas { width: 240px; height: 282px; display: block; touch-action: none;
+  body { position: relative; }
+  canvas { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); transition: transform .2s ease-out;
+           width: 240px; height: 282px; display: block; touch-action: none;
            -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 </style>
 </head>
@@ -17,18 +18,19 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.4.3';
+const APP_VERSION = '0.5.0';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
-const W = 240, H = 282;
-const TOP = 40;                     // the OS bar covers the top 40 px
-const MENU_Y = 246;                 // the menu strip over the bottom of the scenery
+// the canvas is 240x282 upright and 282x240 when the device is held sideways (see layout()); the OS bar always stays on the
+// device's top edge, so it eats 40 px of whichever canvas edge that is (INL/INR/INB, or TOP when upright)
+let W = 240, H = 282, TOP = 40, INL = 0, INR = 0, INB = 0;
+const MENU_H = 36;
+let MENU_Y = 246;                   // the menu strip over the bottom of the scenery
 const BGS = MANI.bgscale;           // scenery image px per stage unit, shown 1:1
 const BGW = MANI.sw * BGS, BGH = MANI.h * BGS;   // 800 x 320: a long strip Clawd walks along
 const BG_YOFF = 55;                 // crop the sky so the floor line sits near y 205
-const BGF = H / (BGH - BG_YOFF);    // the cropped image is scaled to fill the screen height exactly
-const WORLD = BGW * BGF;            // width of the world Clawd walks in
+let BGF, WORLD, ITEM_W, PANEL_X, PANEL_W, PANEL_Y;   // set by layout(): the cropped scenery fills the height exactly, WORLD is the width Clawd walks in
 const K = 0.95 * 1.1;               // Clawd sheet px -> logical px
 const CELLW = MANI.cw * MANI.scale, CELLH = MANI.ch * MANI.scale;
 const SCENES = ['forest', 'space', 'city', 'desert', 'volcano', 'lab', 'night'];
@@ -40,14 +42,51 @@ const BODIES = ['Nichts', 'Schleife', 'Schal'];
 
 const cv = document.getElementById('c');
 const DPR = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1)));
-cv.width = W * DPR; cv.height = H * DPR;
 const ctx = cv.getContext('2d');
-ctx.scale(DPR, DPR);
 
 const rect = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pick = a => a[Math.floor(Math.random() * a.length)];
+
+// ---------- rotation (as in Tally): the WebView stays portrait, so the canvas is turned when the device is held sideways ----------
+const ORIENT_DIR = 1;      // set to -1 if the content turns the wrong way on the device
+let rot = 0, acc = 0, refAng = null, pending = null, pendingSince = 0;
+function layout() {
+  const sideways = rot === 90 || rot === 270;
+  W = sideways ? 282 : 240; H = sideways ? 240 : 282;
+  INL = rot === 90 ? 40 : 0; INR = rot === 270 ? 40 : 0; INB = rot === 180 ? 40 : 0; TOP = rot === 0 ? 40 : 0;
+  MENU_Y = H - INB - MENU_H;
+  BGF = H / (BGH - BG_YOFF); WORLD = BGW * BGF;
+  ITEM_W = (W - INL - INR) / 4;
+  PANEL_W = Math.min(216, W - INL - INR - 24); PANEL_X = INL + (W - INL - INR - PANEL_W) / 2; PANEL_Y = TOP + 6;
+  cv.width = W * DPR; cv.height = H * DPR;           // resizing resets the context
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cv.style.transform = 'translate(-50%, -50%) rotate(' + acc + 'deg)';
+}
+function setRot(deg) {
+  const next = ((deg % 360) + 360) % 360, oldWorld = WORLD;
+  acc += ((next - rot + 540) % 360) - 180;           // shortest signed step, so the turn never goes the long way round
+  rot = next; layout();
+  const f = WORLD / oldWorld;
+  R.x *= f; R.cam *= f; R.target *= f;
+  R.cam = clamp(R.cam, 0, WORLD - W);
+  if (R.ambScene) makeAmbient();
+}
+function orient(d) {
+  const x = d.tiltX ?? d.x ?? d.rawX ?? 0, y = d.tiltY ?? d.y ?? d.rawY ?? 0;
+  if (Math.hypot(x, y) < 0.5) return;                // lying flat: keep the current rotation
+  const ang = Math.atan2(x, y) * 180 / Math.PI;      // direction of gravity in the screen plane
+  if (refAng === null) refAng = ang;                 // the first reading is how the card was opened: upright
+  const want = -ORIENT_DIR * (ang - refAng);
+  const target = ((Math.round(want / 90) * 90) % 360 + 360) % 360;
+  const off = Math.abs(((want - rot) % 360 + 540) % 360 - 180);
+  if (target === rot || off < 60) { pending = null; return; }   // hysteresis
+  const now = Date.now();
+  if (pending !== target) { pending = target; pendingSince = now; return; }
+  if (now - pendingSince > 400) { setRot(target); pending = null; }
+}
 
 // ---------- state ----------
 const S = { scene: 'forest', look: 'original', hat: 0, face: 0, body: 0, born: Date.now() };
@@ -59,6 +98,7 @@ const R = {
   bg: null, sheet: null, bgKey: '', sheetKey: '', anim: '', animT0: 0, act: null,
   panel: null, prow: 0, amb: [], ambScene: '',
 };
+layout();
 const floorY = () => (MANI.floors[S.scene] * BGS - BG_YOFF) * BGF;
 const feetY = () => Math.min(floorY() + 14, MENU_Y - 10);
 const petting = () => (R.hold || (R.touchPet && R.time - R.touchT > .25)) && !R.sleeping && (R.mode === 'idle' || R.mode === 'walk') && !R.panel;
@@ -462,7 +502,7 @@ function drawBubble(c) {
   if (!R.say || !c) return;
   const u = ui(), size = 9, text = R.say.text;
   const w = textW(text, size) + 16, h = 20;
-  const bx = clamp(c.sx - w / 2, 4, W - w - 4), by = Math.max(TOP + 4, c.top - h - 8);
+  const bx = clamp(c.sx - w / 2, INL + 4, W - INR - w - 4), by = Math.max(TOP + 4, c.top - h - 8);
   box(bx, by, w, h);
   const tx = clamp(c.sx, bx + 8, bx + w - 8);
   ctx.fillStyle = u.card; ctx.strokeStyle = STYLE().stroke || u.ink; ctx.lineWidth = 1.5;
@@ -472,19 +512,18 @@ function drawBubble(c) {
   txt(text, bx + w / 2, by + h / 2 + 1, { size, fill: u.ink, align: 'center' });
 }
 
-const ITEM_W = W / 4;
 const MENU_LABELS = () => ['Spiel', R.sleeping ? 'Wecken' : 'Schlaf', 'Items', 'Welt'];
 function drawMenu() {
   strip(0, MENU_Y, W, H - MENU_Y);
   const busy = !R.sleeping && busyNow(), labels = MENU_LABELS();
   for (let i = 0; i < 4; i++) {
-    const x = i * ITEM_W, sel = i === R.sel;
-    if (sel) strip(x + 1, MENU_Y + 3, ITEM_W - 2, H - MENU_Y - 6, true);
-    txt(labels[i], x + ITEM_W / 2, MENU_Y + (H - MENU_Y) / 2, { size: 9, maxW: ITEM_W - 6, halo: true, align: 'center', alpha: busy && i < 2 ? .4 : sel ? 1 : .8 });
+    const x = INL + i * ITEM_W, sel = i === R.sel;
+    if (sel) strip(x + 1, MENU_Y + 3, ITEM_W - 2, MENU_H - 6, true);
+    txt(labels[i], x + ITEM_W / 2, MENU_Y + MENU_H / 2, { size: 9, maxW: ITEM_W - 6, halo: true, align: 'center', alpha: busy && i < 2 ? .4 : sel ? 1 : .8 });
   }
 }
 
-const PANEL_X = 12, PANEL_W = 216, PANEL_Y = TOP + 6, ROW_H = 22;
+const ROW_H = 22;
 const panelH = () => 26 + PANELS[R.panel]().length * ROW_H + 8;
 function drawPanel() {
   const u = ui(), rows = PANELS[R.panel](), h = panelH();
@@ -517,7 +556,7 @@ function draw() {
   drawBubble(c);
 
   if (R.dim > .01) { ctx.globalAlpha = R.dim; rect(0, 0, W, H, '#05060f'); ctx.globalAlpha = 1; }
-  txt('v' + APP_VERSION + ' ' + R.storageTag, W - 5, TOP + 8, { size: 7, halo: true, align: 'right', alpha: .6 });
+  txt('v' + APP_VERSION + ' ' + R.storageTag, W - INR - 5, TOP + 8, { size: 7, halo: true, align: 'right', alpha: .6 });
   drawMenu();
   if (R.panel) drawPanel();
   if (!R.bg || !R.sheet || !ready) {
@@ -598,7 +637,9 @@ window.addEventListener('longPressEnd', () => { R.hold = false; });
 
 function pos(e) {
   const t = (e.touches && e.touches[0]) || e, r = cv.getBoundingClientRect();
-  return [(t.clientX - r.left) * W / r.width, (t.clientY - r.top) * H / r.height];
+  // the canvas may be turned: undo the rotation around its centre
+  const a = rot * Math.PI / 180, dx = t.clientX - (r.left + r.width / 2), dy = t.clientY - (r.top + r.height / 2);
+  return [dx * Math.cos(a) + dy * Math.sin(a) + W / 2, -dx * Math.sin(a) + dy * Math.cos(a) + H / 2];
 }
 function down(e) {
   e.preventDefault(); touched();
@@ -610,7 +651,7 @@ function down(e) {
     if (row >= 0 && row < rows) { R.prow = row; changePanel(x < W / 2 ? -1 : 1); }
     return;
   }
-  if (y >= MENU_Y) { R.sel = clamp(Math.floor(x / ITEM_W), 0, 3); act(R.sel); return; }
+  if (y >= MENU_Y) { R.sel = clamp(Math.floor((x - INL) / ITEM_W), 0, 3); act(R.sel); return; }
   const sx = R.x - R.cam, fy = feetY();
   if (Math.abs(x - sx) < 44 && y > fy - 100 && y < fy + 8) { R.touchPet = true; R.touchT = R.time; R.touchX = x; return; }
   // a tap on the scenery: Clawd walks over there
@@ -630,6 +671,7 @@ document.body.addEventListener('mouseup', up);
 
 // shake -> dizzy (wakes a sleeping Clawd, grumpily)
 function onAccel(d) {
+  orient(d);
   const x = d.tiltX ?? d.x ?? 0, y = d.tiltY ?? d.y ?? 0, z = d.tiltZ ?? d.z ?? 0;
   if (R.prev) R.jerk += Math.abs(x - R.prev[0]) + Math.abs(y - R.prev[1]) + Math.abs(z - R.prev[2]);
   R.prev = [x, y, z];
@@ -641,8 +683,9 @@ function onAccel(d) {
 }
 (async function initSensors() {
   try {
-    const acc = await waitFor(() => window.creationSensors && window.creationSensors.accelerometer, 3000);
-    if (acc && await acc.isAvailable()) acc.start(onAccel, { frequency: 30 });
+    const accel = await waitFor(() => window.creationSensors && window.creationSensors.accelerometer, 3000);
+    if (accel && await accel.isAvailable()) accel.start(onAccel, { frequency: 30 });
+    else window.addEventListener('devicemotion', e => { const g = e.accelerationIncludingGravity; if (g && g.x != null && g.y != null) orient({ x: g.x, y: g.y }); });
   } catch (e) {}
 })();
 
@@ -651,6 +694,7 @@ if (typeof window.PluginMessageHandler === 'undefined') {
   const map = { ArrowUp: 'scrollUp', ArrowLeft: 'scrollUp', ArrowDown: 'scrollDown', ArrowRight: 'scrollDown', Enter: 'sideClick', ' ': 'sideClick' };
   window.addEventListener('keydown', e => {
     if (map[e.key]) { e.preventDefault(); window.dispatchEvent(new Event(map[e.key])); }
+    else if (e.key === 'o' || e.key === 'O') setRot(rot + 90);   // preview: cycle the rotation
     else if ((e.key === 'h' || e.key === 'H') && !e.repeat) window.dispatchEvent(new Event('longPressStart'));
   });
   window.addEventListener('keyup', e => { if (e.key === 'h' || e.key === 'H') window.dispatchEvent(new Event('longPressEnd')); });
