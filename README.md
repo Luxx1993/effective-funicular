@@ -17,6 +17,7 @@ Die Seite `https://luxx1993.github.io/effective-funicular/` listet alle Creation
 | Name | Branch | Beschreibung |
 | --- | --- | --- |
 | Tally | `creation/tally` | Strichlisten-Zähler mit Auto-Rotation |
+| Marble Maze | `creation/marble-maze` | Murmel-Labyrinth: 15 Level, Neigung per Beschleunigungssensor, Drehregler = Tempo (10 Stufen) |
 
 ### Tally installieren
 
@@ -25,6 +26,14 @@ Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
 [![Install-QR für Tally – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/tally/qr.png)](https://github.com/Luxx1993/effective-funicular/tree/creation/tally)
 
 (Ein Klick auf das Bild öffnet den Branch `creation/tally` mit Screenshots und Beschreibung. Das Bild ist immer der aktuelle Code der Creation.)
+
+### Marble Maze installieren
+
+Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
+
+[![Install-QR für Marble Maze – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/marble-maze/qr.png)](https://github.com/Luxx1993/effective-funicular/tree/creation/marble-maze)
+
+Bedienung: Neigen = Kugel rollt, Drehregler = Tempo (1–10), Seitentaste = Neutrallage kalibrieren (Doppelklick = Y-Achse umkehren), langer Druck = Levelmenü.
 
 ## Neue Creation anlegen
 
