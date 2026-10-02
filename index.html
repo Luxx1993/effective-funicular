@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=240, initial-scale=1, user-scalable=no">
+<title>Marble Maze</title>
+<style>
+  html, body { margin: 0; width: 240px; height: 282px; overflow: hidden;
+               background: #000; color: #fff; font: 14px system-ui, sans-serif;
+               -webkit-user-select: none; user-select: none;
+               -webkit-tap-highlight-color: transparent; }
+  #app { position: absolute; left: 0; top: 0; width: 240px; height: 282px; }
+  canvas { position: absolute; left: 0; top: 40px; width: 240px; height: 224px; }
+  #hud { position: absolute; left: 0; top: 264px; width: 240px; height: 18px;
+         display: flex; justify-content: space-between; box-sizing: border-box;
+         padding: 0 8px; font-size: 12px; line-height: 18px; color: #FE5000;
+         font-variant-numeric: tabular-nums; }
+  #hud span:last-child { color: #fff; opacity: .5; }
+  #msg { position: absolute; left: 20px; top: 100px; width: 200px; box-sizing: border-box;
+         padding: 12px 8px; text-align: center; background: rgba(0,0,0,.88);
+         border: 2px solid #FE5000; border-radius: 10px; display: none; }
+  #msg b { display: block; font-size: 20px; color: #FE5000; margin-bottom: 4px; }
+  #msg small { display: block; opacity: .6; font-size: 11px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv" width="240" height="224"></canvas>
+  <div id="hud"><span id="lv">L1</span><span id="tm">0.0s</span><span id="ver"></span></div>
+  <div id="msg"></div>
+</div>
+<script>
+const APP_VERSION = '0.1.0';
+const KEY = 'marblemaze_state';
+const W = 240, H = 224;
+const $ = (id) => document.getElementById(id);
+const enc = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const dec = (s) => JSON.parse(decodeURIComponent(escape(atob(s))));
+
+// ---- storage: creationStorage.plain (may be injected late), mirrored to localStorage
+let state = { level: 1, max: 1, best: {}, invY: false };
+let mode = '-';
+const cs = () => (window.creationStorage && window.creationStorage.plain) || null;
+const unwrap = (raw) => {
+  if (raw && typeof raw === 'object') raw = raw.value !== undefined ? raw.value : null;
+  return typeof raw === 'string' && raw ? dec(raw) : null;
+};
+async function load() {
+  for (let i = 0; i < 15 && !cs(); i++) await new Promise((r) => setTimeout(r, 100));
+  let v = null;
+  try { if (cs()) { v = unwrap(await cs().getItem(KEY)); if (v) mode = 'cs'; } } catch (e) {}
+  if (!v) { try { v = unwrap(localStorage.getItem(KEY)); if (v) mode = 'ls'; } catch (e) {} }
+  if (!v) mode = cs() ? 'cs0' : 'ls0';
+  if (v) state = Object.assign(state, v);
+}
+let saveTimer = null;
+function flush() {
+  clearTimeout(saveTimer); saveTimer = null;
+  const e = enc(state);
+  try { localStorage.setItem(KEY, e); } catch (x) {}
+  try { if (cs()) cs().setItem(KEY, e); } catch (x) {}
+}
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 300); }
+window.addEventListener('pagehide', () => { if (saveTimer) flush(); });
+document.addEventListener('visibilitychange', () => { if (saveTimer) flush(); });
+
+// ---- maze generation (seeded DFS, so a level is always the same maze)
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function makeMaze(cols, rows, seed) {
+  const rand = rng(seed * 7919 + 13);
+  const right = [], down = [], seen = [];     // wall present = true
+  for (let r = 0; r < rows; r++) { right.push(Array(cols).fill(true)); down.push(Array(cols).fill(true)); seen.push(Array(cols).fill(false)); }
+  const stack = [[0, 0]]; seen[0][0] = true;
+  while (stack.length) {
+    const [c, r] = stack[stack.length - 1];
+    const nb = [];
+    if (c > 0 && !seen[r][c - 1]) nb.push([c - 1, r, 'L']);
+    if (c < cols - 1 && !seen[r][c + 1]) nb.push([c + 1, r, 'R']);
+    if (r > 0 && !seen[r - 1][c]) nb.push([c, r - 1, 'U']);
+    if (r < rows - 1 && !seen[r + 1][c]) nb.push([c, r + 1, 'D']);
+    if (!nb.length) { stack.pop(); continue; }
+    const [nc, nr, d] = nb[Math.floor(rand() * nb.length)];
+    if (d === 'L') right[r][c - 1] = false;
+    if (d === 'R') right[r][c] = false;
+    if (d === 'U') down[r - 1][c] = false;
+    if (d === 'D') down[r][c] = false;
+    seen[nr][nc] = true; stack.push([nc, nr]);
+  }
+  return { cols, rows, right, down };
+}
+
+// ---- level setup
+const cv = $('cv'), g = cv.getContext('2d');
+const wall = document.createElement('canvas'); wall.width = W; wall.height = H;
+let L = null, ball = null, won = false, t0 = 0, elapsed = 0, started = false;
+const TH = 3;                                   // wall thickness
+
+function setup(level) {
+  const size = Math.min(10, 4 + level);
+  const cell = Math.floor(Math.min((W - 4) / size, (H - 4) / size));
+  const ox = Math.floor((W - cell * size) / 2), oy = Math.floor((H - cell * size) / 2);
+  const m = makeMaze(size, size, level);
+  const rects = [];                               // [x0, y0, x1, y1]
+  const h = TH / 2;
+  for (let r = 0; r <= size; r++) for (let c = 0; c < size; c++) {
+    if (r === 0 || r === size || m.down[r - 1][c]) rects.push([ox + c * cell - h, oy + r * cell - h, ox + (c + 1) * cell + h, oy + r * cell + h]);
+  }
+  for (let c = 0; c <= size; c++) for (let r = 0; r < size; r++) {
+    if (c === 0 || c === size || m.right[r][c - 1]) rects.push([ox + c * cell - h, oy + r * cell - h, ox + c * cell + h, oy + (r + 1) * cell + h]);
+  }
+  L = { level, size, cell, ox, oy, rects, rad: Math.max(4, cell * 0.27),
+        gx: ox + (size - 0.5) * cell, gy: oy + (size - 0.5) * cell };
+  ball = { x: ox + cell / 2, y: oy + cell / 2, vx: 0, vy: 0 };
+  won = false; started = false; elapsed = 0;
+  // pre-render the static maze
+  const w = wall.getContext('2d');
+  w.clearRect(0, 0, W, H);
+  w.fillStyle = '#FE5000';
+  for (const [a, b, c, d] of rects) w.fillRect(a, b, c - a, d - b);
+  w.fillStyle = '#0a0a0a';
+  w.beginPath(); w.arc(L.gx, L.gy, cell * 0.3, 0, 6.2832); w.fill();
+  w.strokeStyle = '#fff'; w.lineWidth = 2;
+  w.beginPath(); w.arc(L.gx, L.gy, cell * 0.3, 0, 6.2832); w.stroke();
+  $('msg').style.display = 'none';
+  updateHud();
+}
+
+function updateHud() {
+  $('lv').textContent = 'L' + L.level;
+  const b = state.best[L.level];
+  $('tm').textContent = elapsed.toFixed(1) + 's' + (b ? ' / ' + b.toFixed(1) : '');
+  $('ver').textContent = 'v' + APP_VERSION + ' ' + mode + (hasAcc ? ' a' : ' k') + (state.invY ? ' y-' : '');
+}
+
+// ---- tilt input
+let hasAcc = false;
+let neutral = null;           // calibrated on first reading; side click recalibrates
+let raw = { x: 0, y: 0 };
+let tilt = { x: 0, y: 0 };    // smoothed, relative to neutral
+function onAccel(d) {
+  const x = d.tiltX ?? d.x ?? 0, y = d.tiltY ?? d.y ?? 0;
+  raw.x = x; raw.y = y; hasAcc = true;
+  if (neutral === null) neutral = { x, y };
+  const tx = x - neutral.x, ty = (y - neutral.y) * (state.invY ? -1 : 1);
+  tilt.x += (tx - tilt.x) * 0.4;
+  tilt.y += (ty - tilt.y) * 0.4;
+}
+async function initSensors() {
+  for (let i = 0; i < 30 && !(window.creationSensors && window.creationSensors.accelerometer); i++) await new Promise((r) => setTimeout(r, 100));
+  try {
+    const a = window.creationSensors && window.creationSensors.accelerometer;
+    if (a && (await a.isAvailable())) { a.start(onAccel, { frequency: 60 }); return; }
+  } catch (e) {}
+  window.addEventListener('devicemotion', (e) => {      // fallback: gravity normalised to -1..1
+    const a = e.accelerationIncludingGravity; if (!a) return;
+    onAccel({ x: -a.x / 9.81, y: a.y / 9.81 });
+  });
+}
+
+// ---- physics
+const keys = { l: 0, r: 0, u: 0, d: 0 };
+function step(dt) {
+  let ax = tilt.x, ay = tilt.y;
+  if (keys.l || keys.r || keys.u || keys.d) { ax = keys.r - keys.l; ay = keys.d - keys.u; }
+  const k = L.cell * 22, vmax = L.cell * 11;
+  ball.vx += ax * k * dt; ball.vy += ay * k * dt;
+  const damp = Math.exp(-1.2 * dt);
+  ball.vx *= damp; ball.vy *= damp;
+  const sp = Math.hypot(ball.vx, ball.vy);
+  if (sp > vmax) { ball.vx *= vmax / sp; ball.vy *= vmax / sp; }
+  ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+  const r = L.rad;
+  for (const [x0, y0, x1, y1] of L.rects) {
+    const px = Math.max(x0, Math.min(ball.x, x1)), py = Math.max(y0, Math.min(ball.y, y1));
+    let dx = ball.x - px, dy = ball.y - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= r * r) continue;
+    let nx, ny, pen;
+    if (d2 > 1e-6) { const d = Math.sqrt(d2); nx = dx / d; ny = dy / d; pen = r - d; }
+    else {                                       // centre inside the rect: push out the short way
+      const l = ball.x - x0, rr = x1 - ball.x, u = ball.y - y0, dn = y1 - ball.y;
+      const m = Math.min(l, rr, u, dn);
+      if (m === l) { nx = -1; ny = 0; } else if (m === rr) { nx = 1; ny = 0; } else if (m === u) { nx = 0; ny = -1; } else { nx = 0; ny = 1; }
+      pen = m + r;
+    }
+    ball.x += nx * pen; ball.y += ny * pen;
+    const vn = ball.vx * nx + ball.vy * ny;
+    if (vn < 0) { ball.vx -= 1.3 * vn * nx; ball.vy -= 1.3 * vn * ny; }
+  }
+}
+
+function win() {
+  won = true;
+  const prev = state.best[L.level];
+  const rec = !prev || elapsed < prev;
+  if (rec) state.best[L.level] = Math.round(elapsed * 10) / 10;
+  state.max = Math.max(state.max, L.level + 1);
+  state.level = L.level + 1;
+  save();
+  const m = $('msg');
+  m.innerHTML = '<b>Level ' + L.level + ' done!</b>' + elapsed.toFixed(1) + 's' + (rec ? ' - new best' : '') + '<small>click = next level</small>';
+  m.style.display = 'block';
+  updateHud();
+}
+
+// ---- main loop
+let last = 0;
+function frame(ts) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+  if (!won) {
+    if (!started && (Math.abs(tilt.x) + Math.abs(tilt.y) > 0.15 || keys.l || keys.r || keys.u || keys.d)) { started = true; t0 = ts; }
+    for (let i = 0; i < 3; i++) step(dt / 3);
+    if (started) elapsed = (ts - t0) / 1000;
+    if (Math.hypot(ball.x - L.gx, ball.y - L.gy) < L.cell * 0.25) win();
+  }
+  g.clearRect(0, 0, W, H);
+  g.drawImage(wall, 0, 0);
+  const grd = g.createRadialGradient(ball.x - L.rad * .35, ball.y - L.rad * .35, 1, ball.x, ball.y, L.rad);
+  grd.addColorStop(0, '#fff'); grd.addColorStop(1, '#8aa');
+  g.fillStyle = grd;
+  g.beginPath(); g.arc(ball.x, ball.y, L.rad, 0, 6.2832); g.fill();
+  if ((ts | 0) % 4 === 0) updateHud();
+}
+
+// ---- buttons
+function goLevel(n) { n = Math.max(1, Math.min(state.max, n)); state.level = n; save(); setup(n); }
+function recalibrate() { neutral = { x: raw.x, y: raw.y }; tilt.x = tilt.y = 0; ball.vx = ball.vy = 0; }
+function primary() { if (won) goLevel(L.level + 1); else recalibrate(); }
+window.addEventListener('sideClick', primary);
+window.addEventListener('scrollUp', () => goLevel(L.level + 1));
+window.addEventListener('scrollDown', () => goLevel(L.level - 1));
+window.addEventListener('longPressStart', () => { state.invY = !state.invY; neutral = { x: raw.x, y: raw.y }; tilt.x = tilt.y = 0; save(); });
+document.body.addEventListener('touchstart', (e) => { e.preventDefault(); primary(); }, { passive: false });
+
+// Desktop preview shim (no-op on the device): arrows = tilt, Enter = side click, [ ] = level
+if (typeof PluginMessageHandler === 'undefined') {
+  const km = { ArrowLeft: 'l', ArrowRight: 'r', ArrowUp: 'u', ArrowDown: 'd' };
+  window.addEventListener('keydown', (e) => {
+    if (km[e.key]) { keys[km[e.key]] = 1; e.preventDefault(); }
+    else if (e.key === 'Enter') window.dispatchEvent(new Event('sideClick'));
+    else if (e.key === ']') window.dispatchEvent(new Event('scrollUp'));
+    else if (e.key === '[') window.dispatchEvent(new Event('scrollDown'));
+    else if (e.key === 'r') window.dispatchEvent(new Event('longPressStart'));
+  });
+  window.addEventListener('keyup', (e) => { if (km[e.key]) keys[km[e.key]] = 0; });
+}
+
+(async () => {
+  await load();
+  setup(Math.min(state.level, state.max));
+  initSensors();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
