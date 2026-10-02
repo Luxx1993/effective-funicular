@@ -1,0 +1,59 @@
+--- /home/user/claude-fables-plugin/hooks/svg.ts	2026-10-02 22:13:48.522046503 +0000
++++ hooks/svg.ts	2026-10-02 22:15:40.160866674 +0000
+@@ -4,7 +4,7 @@
+ import { type HeroPainter, motionSvg } from './hero3d'
+ import { gradeFilter } from './grade'
+ import { MONOCRAFT, MONOCRAFT_BOLD } from './monocraft'
+-import { ENTRANCE_SECONDS, TYPE_SECONDS_PER_CHAR } from './scene'
++import { ENTRANCE_SECONDS, TYPE_SECONDS_PER_CHAR, parseScene } from './scene'
+ import { richBackdrop } from './scenery'
+ import { type Cell, type Look, lookFor, PAPER as CARD_PAPER, type Paper, type Tag, type WordKind } from './looks'
+ import { HERO_FRAMES, PALETTE, SPRITES, type SpriteName } from './sprites'
+@@ -800,7 +800,7 @@
+  * (a tiny dot of a tiled grid, cut out of the drawing) and spread over its whole
+  * square. The grid starts at the stage's corner, so pixels line up with it.
+  */
+-const PIXELIZE = (sw: number, claude: Rect, grade = '', sprite = { eye: SPRITE_EYE, outline: SPRITE_OUTLINE }) => {
++export const PIXELIZE = (sw: number, claude: Rect, grade = '', sprite = { eye: SPRITE_EYE, outline: SPRITE_OUTLINE }) => {
+   const dot = 0.4
+   const r = n((PIXEL - dot) / 2)
+   // The grid: one dot tiled every PIXEL, seeded inside the filter's region on a whole pixel
+@@ -1000,3 +1000,38 @@
+ 
+ /** How long a drawn scene's bubble waits for Claude before it appears, in seconds (0 when it appears at once). */
+ export const speaksAfter = (svg: string) => Number(/data-part="speech"[^>]*\sdata-speaks="([\d.]+)"/.exec(svg)?.[1] ?? 0)
++
++/** Asset export for the R1 creation: the stage alone, no hero, caption or tag. */
++export function backdropSvg(backdropName: string, lookName: string, sw: number, scale: number): { svg: string; floor: number } {
++  const scene = parseScene({ backdrop: backdropName, hero: { action: 'idle', from: 0, to: 0 }, caption: 'x' })!
++  const look = lookFor(lookName)
++  const rich = true
++  const pixelArt = look.pixel === true
++  const art = look.art
++  const painter = art?.painter(sw)
++  const stage = richBackdrop(scene, rng(`${scene.backdrop}|${scene.caption}|stage`), sw, GROUND_Y, W, false, !pixelArt && !look.grade && !art, painter)
++  const sky = art?.sky ?? stage.sky
++  const ground = art?.ground ?? stage.ground
++  const gradeBody = look.grade?.(sw, H, pixelArt) ?? ''
++  const grade = gradeBody && !pixelArt ? `<defs>${gradeFilter('lk-grade', sw, H, gradeBody)}</defs>` : ''
++  const edge = look.edge ?? sky
++  const svg =
++    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${sw} ${H}" width="${sw * scale}" height="${H * scale}" shape-rendering="crispEdges" style="display:block;background:${look.grade ? edge : ground}">` +
++    grade +
++    `<rect x="${-sw * 4}" y="${-H * 4}" width="${sw * 9}" height="${H * 4 + GROUND_Y}" fill="${look.grade ? edge : sky}"/>` +
++    (art?.defs ? `<defs>${art.defs(sw, H)}</defs>` : '') +
++    (pixelArt ? `<defs>${PIXELIZE(sw, { x: -100, y: -100, w: 1, h: 1 }, gradeBody)}</defs><g filter="url(#sc-pixelize)">` : '') +
++    (grade ? `<g filter="url(#lk-grade)">` : '') +
++    (look.grade ? `<rect width="${sw}" height="${H}" fill="${sky}"/>` : '') +
++    (art?.under?.(sw, H) ?? '') +
++    stage.back +
++    `<rect x="${-sw * 4}" y="${stage.groundTop}" width="${sw * 9}" height="${H * 4}" fill="${ground}"/>` +
++    stage.near +
++    stage.lens +
++    (grade ? '</g>' : '') +
++    (pixelArt ? '</g>' : '') +
++    (look.texture?.(sw, H, GROUND_Y, pixelArt) ?? '') +
++    (look.frame?.(sw, H, GROUND_Y) ?? '') +
++    `</svg>`
++  return { svg, floor: stage.floor }
++}
