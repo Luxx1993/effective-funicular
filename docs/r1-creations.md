@@ -450,6 +450,21 @@ Voice: for speech input the community uses either the PTT long-press flow (see t
 - [ ] No API keys or secrets in the page; backend over HTTPS
 - [ ] Version tag visible; versioned filename used for installs
 
+## 11b. Lessons from the Tally creation (verified on a real R1)
+
+**[verified on device]** These come from building and testing the Tally counter (`index.html`) on a real R1.
+
+- **SDK objects arrive late.** `window.creationStorage` and `window.creationSensors` may not exist yet when the script first runs. Poll for them (e.g. every 100 ms for up to ~3 s) before choosing a fallback. A one-time check at startup silently used `localStorage` and the count was lost on close.
+- **Storage works as documented.** `creationStorage.plain` with Base64 (UTF-8 safe) persists across closing the card. Write on every change (debounced ~300 ms), flush on `pagehide`/`visibilitychange`, and mirror to `localStorage` as a desktop/backup copy. Load from `creationStorage` first.
+- **Storage is per installed URL.** A new URL (e.g. `index-v0.2.4.html`) is a new plugin with its own empty `creationStorage`. `localStorage` is shared per origin, so a mirrored copy can carry old state across versions.
+- **Hardware events behave as documented:** `scrollUp`/`scrollDown`, `sideClick`, `longPressStart` and `touchstart` (on `document.body`, with `preventDefault`) all worked.
+- **Accelerometer:** `creationSensors.accelerometer.start(cb)` delivers `{tiltX, tiltY, tiltZ}` normalised about -1..1 (the demo shape). Turning the device clockwise (top towards the right) gives x = +1, the opposite of the Android convention. Do not hardcode signs: calibrate on the first stable reading (treat it as upright) and compute the angle relative to it. Fallback if no data arrives: `devicemotion` with `accelerationIncludingGravity`.
+- **Auto-rotation is done in the page.** The R1 screen stays 240x282 portrait and the OS bar (back, clock, battery) never rotates. Rotate your own container with CSS `transform: rotate()` and swap its width/height for 90/270. Use hysteresis (about 60 degrees) and a ~400 ms stability delay. Keep an unwrapped, accumulated angle and take the shortest signed step; wrapping to 0..359 makes the animation spin the long way round.
+- **The OS draws a top bar** ("back", clock, battery) over the top of the page area. Keep important content clear of the top ~40 px.
+- **A creation is a WebView, not a browser.** If the install URL returns a 404, the R1 simply renders the host's 404/docs page (GitHub Pages showed its docs). No address bar, tabs or free URL entry exist. An OS keyboard appears for text inputs.
+- **Updating:** the R1 caches the install URL. Publish a new versioned file, uninstall the old card, scan the new QR. Pages must serve the branch containing that file, or the QR gives a 404.
+- **On-screen debug tag** (version plus storage/sensor status) was the fastest way to debug on the device; photograph the screen. Remove it for release.
+
 ## 12. Open questions and known gaps
 
 - Exact behaviour of voice/STT inside creations (official page says unavailable; community apps report voice input working). Verify on device.
