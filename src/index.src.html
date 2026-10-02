@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '0.7.1';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -59,7 +59,7 @@ function layout() {
   MENU_Y = H - INB - MENU_H;
   BGF = H / (BGH - BG_YOFF); WORLD = BGW * BGF;
   ITEM_W = (W - INL - INR) / 4;
-  PH = sideways ? 96 : 116; PY = H - INB - PH;      // the Welt / Items picker opens in the menu's place, at the bottom
+  PH = MENU_H; PY = MENU_Y;                           // the Welt / Items picker takes the menu's place and size
   cv.width = W * DPR; cv.height = H * DPR;           // resizing resets the context
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -402,8 +402,7 @@ function update(dt) {
   if (sx < 70) R.cam = R.x - 70; else if (sx > W - 70) R.cam = R.x - (W - 70);
   R.cam = clamp(R.cam, 0, WORLD - W);
   if (R.menuOn && R.time - R.menuT > 5) R.menuOn = false;
-  // the scene lifts so Clawd stays visible above the picker; the drums roll to their values
-  R.lift += ((R.panel ? Math.max(0, feetY() + 10 - PY) : 0) - R.lift) * Math.min(1, dt * 8);
+  // the drums roll to their values
   if (R.panel) for (const k of R.pk) k.pos += (k.tgt - k.pos) * Math.min(1, dt * 14);
   if (!ready || R.panel) return;
 
@@ -530,24 +529,25 @@ function drawMenu() {
   }
 }
 
-// the picker: translucent strips with endless drums, the chosen value in the middle band
+// the picker: in the menu's strip; each column shows only its chosen value, and the wheel rolls it like a rolodex card
 function drawPanel() {
-  const u = ui(), cols = PANELS[R.panel], uw = W - INL - INR, cw = uw / cols.length, cy = PY + 18 + (PH - 18) / 2;
+  const cols = PANELS[R.panel], uw = W - INL - INR, cw = uw / cols.length, cy = PY + 25;
   strip(0, PY, W, H - PY);
-  ctx.globalAlpha = .3; rect(0, PY, W, H - PY, u.bg); ctx.globalAlpha = 1;       // a little denser than the menu, for legibility
   cols.forEach((c, ci) => {
     const x0 = INL + ci * cw, on = ci === R.prow, k = R.pk[ci], list = c.list(), n = list.length;
-    txt(c.label, x0 + cw / 2, PY + 9, { size: 7, halo: true, align: 'center', alpha: on ? 1 : .55 });
-    strip(x0 + 3, cy - 11, cw - 6, 22, on);                                     // the band of the chosen value
+    txt(c.label, x0 + cw / 2, PY + 8, { size: 7, halo: true, align: 'center', alpha: on ? 1 : .55 });
+    strip(x0 + 3, cy - 9, cw - 6, 18, on);
+    ctx.save(); ctx.beginPath(); ctx.rect(x0 + 3, cy - 9, cw - 6, 18); ctx.clip();       // cards roll in and out of the band only
     const base = Math.round(k.pos);
-    for (let d = -2; d <= 2; d++) {
-      const o = base + d - k.pos, ang = o * .55;
-      if (Math.abs(ang) > 1.25) continue;
-      const sc = Math.cos(ang), y = cy + Math.sin(ang) * 40;
-      ctx.save(); ctx.translate(x0 + cw / 2, y); ctx.scale(1, sc);
-      txt(list[mod(base + d, n)], 0, 0, { size: 9 + 1.5 * sc, maxW: cw - 8, halo: true, align: 'center', alpha: clamp(sc * sc * (on ? 1 : .7) * 1.1, 0, 1) });
+    for (let d = -1; d <= 1; d++) {
+      const o = base + d - k.pos, ang = o * .95;
+      if (Math.abs(ang) > 1.4) continue;
+      const sc = Math.cos(ang), y = cy + Math.sin(ang) * 17;
+      ctx.save(); ctx.translate(x0 + cw / 2, y); ctx.scale(1, Math.max(.05, sc));
+      txt(list[mod(base + d, n)], 0, 0, { size: 9.5, maxW: cw - 10, halo: true, align: 'center', alpha: clamp(sc * 1.2, 0, 1) * (on ? 1 : .75) });
       ctx.restore();
     }
+    ctx.restore();
   });
 }
 
@@ -676,8 +676,9 @@ function down(e) {
   if (R.panel) {
     if (y < PY) return closePanel();           // a tap above the picker closes it
     const cw = (W - INL - INR) / PANELS[R.panel].length;
-    R.drag = { x, y, col: clamp(Math.floor((x - INL) / cw), 0, PANELS[R.panel].length - 1), acc: 0, moved: false };
-    R.prow = R.drag.col;
+    const col = clamp(Math.floor((x - INL) / cw), 0, PANELS[R.panel].length - 1);
+    R.drag = { x, y, col, acc: 0, moved: false, was: R.prow === col };
+    R.prow = col;
     return;
   }
   if (y >= MENU_Y) { R.sel = clamp(Math.floor((x - INL) / ITEM_W), 0, 3); act(R.sel); return; }
@@ -700,10 +701,7 @@ function up(e) {
   e.preventDefault();
   if (R.drag) {
     const d = R.drag; R.drag = null;
-    if (!d.moved) {                                // a tap on a drum row rolls it there
-      const cy = PY + 18 + (PH - 18) / 2, dy = d.y - cy;
-      if (Math.abs(dy) > 11) rollTo(d.col, (dy < 0 ? -1 : 1) * (Math.abs(dy) > 32 ? 2 : 1));
-    }
+    if (!d.moved && d.was) rollTo(d.col, 1);       // a tap on the chosen column rolls it on; a first tap just selects it
     return;
   }
   if (R.touchPet && R.time - R.touchT <= .25) tapReact();
