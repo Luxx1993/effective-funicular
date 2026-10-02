@@ -17,7 +17,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.4.2';
+const APP_VERSION = '0.4.3';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -473,7 +473,7 @@ function drawBubble(c) {
 }
 
 const ITEM_W = W / 4;
-const MENU_LABELS = () => ['Spiel', R.sleeping ? 'Wecken' : 'Schlaf', 'Sachen', 'Welt'];
+const MENU_LABELS = () => ['Spiel', R.sleeping ? 'Wecken' : 'Schlaf', 'Items', 'Welt'];
 function drawMenu() {
   strip(0, MENU_Y, W, H - MENU_Y);
   const busy = !R.sleeping && busyNow(), labels = MENU_LABELS();
@@ -489,7 +489,7 @@ const panelH = () => 26 + PANELS[R.panel]().length * ROW_H + 8;
 function drawPanel() {
   const u = ui(), rows = PANELS[R.panel](), h = panelH();
   box(PANEL_X, PANEL_Y, PANEL_W, h);
-  txt(R.panel === 'world' ? 'Welt' : 'Sachen', PANEL_X + PANEL_W / 2, PANEL_Y + 13, { size: 10, fill: u.ink, align: 'center' });
+  txt(R.panel === 'world' ? 'Welt' : 'Items', PANEL_X + PANEL_W / 2, PANEL_Y + 13, { size: 10, fill: u.ink, align: 'center' });
   rows.forEach(([k, v], i) => {
     const y = PANEL_Y + 24 + i * ROW_H, on = i === R.prow;
     if (on) { ctx.globalAlpha = .16; rect(PANEL_X + 8, y, PANEL_W - 16, ROW_H - 2, u.ink); ctx.globalAlpha = 1; rect(PANEL_X + 8, y + ROW_H - 4, PANEL_W - 16, 2, u.ink); }
