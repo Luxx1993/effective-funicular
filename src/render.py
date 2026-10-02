@@ -10,7 +10,7 @@ async def main():
         for f in sorted(glob.glob(SP+'out/*.svg')):
             name=os.path.basename(f)[:-4]
             sheet=name.startswith('sheet')
-            w,h=(1680,1716) if sheet else (640,256)
+            w,h=(1680,1716) if sheet else (800,320)
             pg=await b.new_page(viewport={'width':w,'height':h})
             await pg.goto('file://'+f)
             await pg.wait_for_timeout(150)

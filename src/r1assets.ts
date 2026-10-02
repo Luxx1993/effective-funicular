@@ -8,13 +8,13 @@ import { MONOCRAFT, MONOCRAFT_BOLD } from '../hooks/monocraft'
 
 const out = process.argv[2]!
 mkdirSync(out, { recursive: true })
-const SW = 320, SCALE = 2, HEROH = 40
+const SW = 320, SCALE = 2, BGS = 2.5, HEROH = 40
 const s = HEROH / MODEL_H
 
 // ---- backdrops
 const floors: Record<string, number> = {}
 for (const look of LOOK_NAMES) for (const b of BACKDROPS) {
-  const r = backdropSvg(b, look, SW, SCALE)
+  const r = backdropSvg(b, look, SW, BGS)
   floors[b] = r.floor
   writeFileSync(`${out}/bg-${look}-${b}.svg`, r.svg)
 }
@@ -38,7 +38,7 @@ const MOTIONS: Record<string, Mo> = {
 const CW = 70, CH = 66 // cell, stage units (even, so the pixel grid lines up)
 const names = Object.keys(MOTIONS)
 const COLS = Math.max(...names.map(n => MOTIONS[n]!.frames))
-const manifest = { cw: CW, ch: CH, scale: SCALE, sw: SW, h: 128, floors, motions: {} as Record<string, { row: number; frames: number; dur: number }> }
+const manifest = { cw: CW, ch: CH, scale: SCALE, bgscale: BGS, sw: SW, h: 128, floors, motions: {} as Record<string, { row: number; frames: number; dur: number }> }
 names.forEach((n, row) => { manifest.motions[n] = { row, frames: MOTIONS[n]!.frames, dur: MOTIONS[n]!.dur } })
 
 for (const look of LOOK_NAMES) {
