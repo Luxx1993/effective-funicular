@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.8.1';
+const APP_VERSION = '0.8.2';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -379,10 +379,28 @@ const PANELS = {
   ],
 };
 const mod = (v, n) => ((v % n) + n) % n;
-function openPanel(name) { R.brkKey = ''; R.panel = name; R.prow = 0; R.pk = PANELS[name].map(c => { const g = c.get(); return { pos: g, tgt: g }; }); }
+function openPanel(name) { R.brkKey = ''; R.panel = name; R.prow = 0; R.pk = PANELS[name].map(c => { const g = c.get(); return { pos: g, idx: g, from: g, q: [], anim: null }; }); }
+// every click of the wheel rolls one card and clicks into place (a little overshoot, then a short rest) before the next one rolls
 function rollTo(col, steps) {
-  const c = PANELS[R.panel][col], k = R.pk[col];
-  k.tgt += steps; c.set(mod(k.tgt, c.list().length)); saveSoon();
+  const k = R.pk[col], dir = steps < 0 ? -1 : 1;
+  for (let i = 0; i < Math.abs(steps) && k.q.length < 5; i++) k.q.push(dir);
+  if (!k.anim) nextStep(col);
+}
+function nextStep(col) {
+  const k = R.pk[col], c = PANELS[R.panel][col], dir = k.q.shift();
+  if (!dir) { k.anim = null; return; }
+  k.from = k.pos; k.idx += dir;
+  c.set(mod(k.idx, c.list().length)); saveSoon();
+  k.anim = { t: 0, dur: k.q.length > 1 ? .12 : .2, hold: .07 };
+}
+const easeOutBack = u => { const c = 1.9, v = u - 1; return 1 + (c + 1) * v * v * v + c * v * v; };   // ~8 % overshoot, then settles
+function rollUpdate(dt) {
+  R.pk.forEach((k, col) => {
+    const a = k.anim; if (!a) return;
+    a.t += dt;
+    if (a.t < a.dur) k.pos = k.from + (k.idx - k.from) * easeOutBack(a.t / a.dur);
+    else { k.pos = k.idx; if (a.t >= a.dur + a.hold) nextStep(col); }
+  });
 }
 const changePanel = dir => rollTo(R.prow, dir);
 function closePanel() { R.brkKey = ''; R.panel = null; R.menuOn = false; touched(); saveSoon(); }
@@ -403,7 +421,7 @@ function update(dt) {
   R.cam = clamp(R.cam, 0, WORLD - W);
   if (R.menuOn && R.time - R.menuT > 5) R.menuOn = false;
   // the drums roll to their values
-  if (R.panel) for (const k of R.pk) k.pos += (k.tgt - k.pos) * Math.min(1, dt * 8);
+  if (R.panel) rollUpdate(dt);
   if (R.brkT) { const e = Math.min(1, dt * 16); R.brk.l += (R.brkT.l - R.brk.l) * e; R.brk.r += (R.brkT.r - R.brk.r) * e; R.brk.y = R.brkT.y; }
   if (!ready || R.panel) return;
 
