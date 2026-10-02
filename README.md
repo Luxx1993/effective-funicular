@@ -52,6 +52,16 @@ Clawd ist ein Haustier ohne Pflege und ohne Level in einer endlosen Welt (keine 
 - Tageszeit: Nach der echten Uhrzeit tönt sich die Szene (Morgenrot, Abendrot, Nacht), Clawd begrüßt dich passend, ist morgens munterer, abends ruhiger mit mehr Pfeifen, nachts langsamer und schläft schneller ein (manchmal findest du ihn schlafend), und die Musik wird nachts leiser und langsamer.
 - Szenen, Stile und Animationen stammen aus dem Claude-Fables-Plugin und sind vorgerendert (`src/` im Branch enthält Generator und Anleitung). Noch nicht auf dem echten Gerät getestet: Sensorfunktionen, Auto-Rotation und die Ladezeit der rund 4 MB Bilder.
 
+### Clawd am Desktop ausprobieren
+
+Clawd ist eine statische Seite (HTML, JavaScript und Bilder) und läuft in jedem normalen Browser, ohne Server und ohne den R1.
+
+- Online: `https://luxx1993.github.io/effective-funicular/clawd/index.html` (setzt voraus, dass GitHub Pages öffentlich erreichbar ist).
+- Lokal: `git clone -b creation/clawd --single-branch https://github.com/Luxx1993/effective-funicular.git clawd`, dann `index.html` im Browser öffnen (der Ordner `assets/` muss daneben liegen). Alternativ im Ordner `python3 -m http.server` starten und `http://localhost:8000/` öffnen.
+- Bedienung: Pfeiltasten = Drehregler (hoch/links und runter/rechts sind die beiden Drehrichtungen), Enter oder Leertaste = Seitentaste, `H` = streicheln, `O` = Ansicht in 90°-Schritten drehen, Maus = Touch (Klicken und Wischen).
+- Am Desktop fehlen die Sensoren (kein Schütteln, keine automatische Drehung), die Ansicht bleibt 240×282 px groß (Browser-Zoom hilft), der Spielstand liegt im `localStorage` des Browsers, und der Ton startet erst nach dem ersten Klick oder Tastendruck.
+- Weiterentwickeln: `index.html` ist generiert. Der Quelltext liegt in `src/index.src.html`, `python3 src/build.py` baut `index.html` und die versionierte Datei neu. Die Bilder entstehen mit dem Generator in `src/` aus dem Claude-Fables-Plugin (siehe `src/README.md`). Beim Weitergeben die Lizenzen beachten: Claudes 3D-Modell von ChetasLua (MIT) und die Schrift Monocraft (OFL).
+
 ## Neue Creation anlegen
 
 ```bash
