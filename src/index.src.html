@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.7.2';
+const APP_VERSION = '0.8.0';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -96,7 +96,7 @@ const R = {
   hold: false, touchPet: false, touchT: 0, sleeping: false, sel: 0, lastClick: 0, lastTouch: 0, taps: [],
   P: [], say: null, dim: 0, petHeart: 0, jerk: 0, prev: null, shakeCool: 0, storageTag: '?',
   bg: null, sheet: null, bgKey: '', sheetKey: '', anim: '', animT0: 0, act: null,
-  panel: null, prow: 0, pk: [], lift: 0, drag: null, menuOn: false, menuT: 0, fast: false, amb: [], ambScene: '',
+  panel: null, prow: 0, pk: [], lift: 0, drag: null, brk: { l: 0, r: 0, y: 0 }, brkT: null, brkKey: '', menuOn: false, menuT: 0, fast: false, amb: [], ambScene: '',
 };
 layout();
 const floorY = () => (MANI.floors[S.scene] * BGS - BG_YOFF) * BGF;
@@ -379,13 +379,13 @@ const PANELS = {
   ],
 };
 const mod = (v, n) => ((v % n) + n) % n;
-function openPanel(name) { R.panel = name; R.prow = 0; R.pk = PANELS[name].map(c => { const g = c.get(); return { pos: g, tgt: g }; }); }
+function openPanel(name) { R.brkKey = ''; R.panel = name; R.prow = 0; R.pk = PANELS[name].map(c => { const g = c.get(); return { pos: g, tgt: g }; }); }
 function rollTo(col, steps) {
   const c = PANELS[R.panel][col], k = R.pk[col];
   k.tgt += steps; c.set(mod(k.tgt, c.list().length)); saveSoon();
 }
 const changePanel = dir => rollTo(R.prow, dir);
-function closePanel() { R.panel = null; R.menuOn = false; touched(); saveSoon(); }
+function closePanel() { R.brkKey = ''; R.panel = null; R.menuOn = false; touched(); saveSoon(); }
 
 // ---------- update ----------
 function update(dt) {
@@ -404,6 +404,7 @@ function update(dt) {
   if (R.menuOn && R.time - R.menuT > 5) R.menuOn = false;
   // the drums roll to their values
   if (R.panel) for (const k of R.pk) k.pos += (k.tgt - k.pos) * Math.min(1, dt * 14);
+  if (R.brkT) { const e = Math.min(1, dt * 16); R.brk.l += (R.brkT.l - R.brk.l) * e; R.brk.r += (R.brkT.r - R.brk.r) * e; R.brk.y = R.brkT.y; }
   if (!ready || R.panel) return;
 
   const m = R.mode, fy = feetY();
@@ -519,32 +520,38 @@ function drawBubble(c) {
 }
 
 const MENU_LABELS = () => ['Spiel', R.sleeping ? 'Wecken' : 'Schlaf', 'Items', 'Welt'];
+// [ ] mark what the wheel is on; they slide from one option to the next
+function brackets(key, l, r, y) {
+  R.brkT = { l, r, y };
+  if (R.brkKey !== key) { R.brkKey = key; R.brk = { l, r, y }; }
+  const b = R.brk;
+  txt('[', b.l, b.y, { size: 10, halo: true, align: 'center' });
+  txt(']', b.r, b.y, { size: 10, halo: true, align: 'center' });
+}
 function drawMenu() {
   strip(0, MENU_Y, W, H - MENU_Y);
   const busy = !R.sleeping && busyNow(), labels = MENU_LABELS();
   for (let i = 0; i < 4; i++) {
     const x = INL + i * ITEM_W, sel = R.menuOn && i === R.sel;
-    if (sel) strip(x + 1, MENU_Y + 3, ITEM_W - 2, MENU_H - 6, true);
-    txt(labels[i], x + ITEM_W / 2, MENU_Y + MENU_H / 2, { size: 9, maxW: ITEM_W - 6, halo: true, align: 'center', alpha: busy && i < 2 ? .4 : sel ? 1 : .8 });
+    txt(labels[i], x + ITEM_W / 2, MENU_Y + MENU_H / 2, { size: 9, maxW: ITEM_W - 14, halo: true, align: 'center', alpha: busy && i < 2 ? .4 : 1 });
+    if (sel) { const hw = Math.min(textW(labels[i], 9), ITEM_W - 14) / 2 + 7; brackets('menu', x + ITEM_W / 2 - hw, x + ITEM_W / 2 + hw, MENU_Y + MENU_H / 2); }
   }
+  if (!R.menuOn) R.brkKey = '';
 }
 
-// the picker: in the menu's strip, as text on strips: "Ort [Wald]  Stil [Kupferstich]"; the wheel rolls the chosen value like a rolodex card
+// the picker: in the menu's strip, as text on strips: "Ort Wald  Stil Kupferstich"; [ ] mark the option the wheel is on, which rolls like a rolodex card
 function drawPanel() {
   const cols = PANELS[R.panel], uw = W - INL - INR, cw = uw / cols.length, one = cols.length === 2;
   strip(0, PY, W, H - PY);
   cols.forEach((c, ci) => {
-    const x0 = INL + ci * cw, on = ci === R.prow, k = R.pk[ci], list = c.list(), n = list.length, a = on ? 1 : .7;
-    if (on) strip(x0 + 1, PY + 3, cw - 2, MENU_H - 6, true);
-    let vx0, vx1, cy;
+    const x0 = INL + ci * cw, on = ci === R.prow, k = R.pk[ci], list = c.list(), n = list.length, a = on ? 1 : .65;
+    let ix0, ix1, cy;
     if (one) {                                   // label and value on one line
-      txt(c.label, x0 + 8, PY + MENU_H / 2, { size: 8, halo: true, alpha: a * .8 });
-      vx0 = x0 + 8 + textW(c.label, 8) + 6; vx1 = x0 + cw - 6; cy = PY + MENU_H / 2;
-    } else { txt(c.label, x0 + cw / 2, PY + 9, { size: 7, halo: true, align: 'center', alpha: a * .8 }); vx0 = x0 + 5; vx1 = x0 + cw - 5; cy = PY + 25; }
-    txt('[', vx0, cy, { size: 9, halo: true, alpha: a });
-    txt(']', vx1, cy, { size: 9, halo: true, align: 'right', alpha: a });
-    const ix0 = vx0 + 6, ix1 = vx1 - 7, mx = (ix0 + ix1) / 2;
-    ctx.save(); ctx.beginPath(); ctx.rect(ix0, cy - 9, ix1 - ix0, 18); ctx.clip();       // cards roll in and out of the brackets only
+      txt(c.label, x0 + 10, PY + MENU_H / 2, { size: 8, halo: true, alpha: a * .8 });
+      ix0 = x0 + 10 + textW(c.label, 8) + 12; ix1 = x0 + cw - 10; cy = PY + MENU_H / 2;
+    } else { txt(c.label, x0 + cw / 2, PY + 9, { size: 7, halo: true, align: 'center', alpha: a * .8 }); ix0 = x0 + 12; ix1 = x0 + cw - 12; cy = PY + 25; }
+    const mx = (ix0 + ix1) / 2;
+    ctx.save(); ctx.beginPath(); ctx.rect(ix0, cy - 9, ix1 - ix0, 18); ctx.clip();       // cards roll in and out of the field only
     const base = Math.round(k.pos);
     for (let d = -1; d <= 1; d++) {
       const o = base + d - k.pos, ang = o * .95;
@@ -555,6 +562,10 @@ function drawPanel() {
       ctx.restore();
     }
     ctx.restore();
+    if (on) {
+      const hw = Math.min(textW(list[mod(base, n)], 9.5), ix1 - ix0) / 2 + 8;
+      brackets('panel' + R.panel, mx - hw, mx + hw, cy);
+    }
   });
 }
 
