@@ -17,7 +17,7 @@ Die Seite `https://luxx1993.github.io/effective-funicular/` listet alle Creation
 | Name | Branch | Beschreibung |
 | --- | --- | --- |
 | Tally | `creation/tally` | Strichlisten-Zähler mit Auto-Rotation |
-| Marble Maze | `creation/marble-maze` | Murmel-Labyrinth, Neigung per Beschleunigungssensor |
+| Marble Maze | `creation/marble-maze` | Murmel-Labyrinth, 15 Level, Neigung per Beschleunigungssensor, Rad = Tempo |
 
 ### Tally installieren
 
