@@ -42,7 +42,7 @@ Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
 
 [![Install-QR für Clawd – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/clawd/qr.png)](https://github.com/Luxx1993/effective-funicular/tree/creation/clawd)
 
-Clawd ist ein Haustier ohne Pflege und ohne Level: Er läuft von selbst durch die Szene, reagiert auf Berührung und schläft ein, wenn niemand da ist.
+Clawd ist ein Haustier ohne Pflege und ohne Level in einer endlosen Welt (keine Begrenzung nach links oder rechts): Er läuft von selbst durch die Szene, reagiert auf Berührung und schläft ein, wenn niemand da ist.
 
 - Drehregler: lenkt Clawd nach links/rechts. Nach einem Druck auf die Seitentaste wählt er stattdessen einen Menüpunkt (Spiel, Schlaf, Items, Welt), ein zweiter Druck führt ihn aus.
 - Seitentaste lang halten oder Clawd gedrückt halten: streicheln. Kurz antippen: er reagiert. Viermal schnell antippen oder schütteln: ihm wird schwindlig. Ein Tipp auf die Szene schickt ihn dorthin.
