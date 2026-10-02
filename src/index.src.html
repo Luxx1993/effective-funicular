@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.6.0';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -96,7 +96,7 @@ const R = {
   hold: false, touchPet: false, touchT: 0, sleeping: false, sel: 0, lastClick: 0, lastTouch: 0, taps: [],
   P: [], say: null, dim: 0, petHeart: 0, jerk: 0, prev: null, shakeCool: 0, storageTag: '?',
   bg: null, sheet: null, bgKey: '', sheetKey: '', anim: '', animT0: 0, act: null,
-  panel: null, prow: 0, amb: [], ambScene: '',
+  panel: null, prow: 0, menuOn: false, menuT: 0, fast: false, amb: [], ambScene: '',
 };
 layout();
 const floorY = () => (MANI.floors[S.scene] * BGS - BG_YOFF) * BGF;
@@ -356,6 +356,7 @@ function tapReact() {
 
 // ---------- menu ----------
 function act(i) {
+  R.menuOn = false;
   if (!ready || R.panel) return;
   touched();
   if (R.sleeping) return wake(false);
@@ -382,7 +383,7 @@ function changePanel(dir) {
   }
   saveSoon();
 }
-function closePanel() { R.panel = null; touched(); saveSoon(); }
+function closePanel() { R.panel = null; R.menuOn = false; touched(); saveSoon(); }
 
 // ---------- update ----------
 function update(dt) {
@@ -398,6 +399,7 @@ function update(dt) {
   const sx = R.x - R.cam;
   if (sx < 70) R.cam = R.x - 70; else if (sx > W - 70) R.cam = R.x - (W - 70);
   R.cam = clamp(R.cam, 0, WORLD - W);
+  if (R.menuOn && R.time - R.menuT > 5) R.menuOn = false;
   if (!ready || R.panel) return;
 
   const m = R.mode, fy = feetY();
@@ -418,7 +420,7 @@ function update(dt) {
       if (r < .62) {
         R.target = clamp(R.x + (Math.random() < .5 ? -1 : 1) * rnd(90, 280), 40, WORLD - 40);
         if (Math.abs(R.target - R.x) < 40) R.target = R.x < WORLD / 2 ? R.x + 200 : R.x - 200;
-        setMode('walk');
+        R.fast = false; setMode('walk');
       } else if (r < .72) startAct('wave', 1.6);
       else if (r < .82) startAct('spin', 1.2);
       else if (r < .9) startAct('dance', 2);
@@ -428,8 +430,8 @@ function update(dt) {
   } else if (m === 'walk') {
     const d = R.target - R.x;
     R.look = Math.sign(d) || R.look;
-    R.x += Math.sign(d) * Math.min(Math.abs(d), 36 * dt);
-    if (Math.abs(d) < 1.5) idle();
+    R.x += Math.sign(d) * Math.min(Math.abs(d), (R.fast ? 80 : 36) * dt);
+    if (Math.abs(d) < 1.5) { R.fast = false; idle(); }
   } else if (m === 'act') {
     if (R.t > R.act.dur) idle(1.2);
   } else if (m === 'play') {
@@ -517,7 +519,7 @@ function drawMenu() {
   strip(0, MENU_Y, W, H - MENU_Y);
   const busy = !R.sleeping && busyNow(), labels = MENU_LABELS();
   for (let i = 0; i < 4; i++) {
-    const x = INL + i * ITEM_W, sel = i === R.sel;
+    const x = INL + i * ITEM_W, sel = R.menuOn && i === R.sel;
     if (sel) strip(x + 1, MENU_Y + 3, ITEM_W - 2, MENU_H - 6, true);
     txt(labels[i], x + ITEM_W / 2, MENU_Y + MENU_H / 2, { size: 9, maxW: ITEM_W - 6, halo: true, align: 'center', alpha: busy && i < 2 ? .4 : sel ? 1 : .8 });
   }
@@ -622,15 +624,28 @@ async function boot() {
 }
 
 // ---------- input ----------
-const stepSel = d => { R.sel = (R.sel + d + 4) % 4; };
-window.addEventListener('scrollUp', () => { touched(); if (R.panel) changePanel(-1); else stepSel(-1); });
-window.addEventListener('scrollDown', () => { touched(); if (R.panel) changePanel(1); else stepSel(1); });
+// wheel: steers Clawd left/right; after a side click it picks a menu item instead (a second click runs it)
+function wheel(d) {
+  touched();
+  if (R.panel) return changePanel(d);
+  if (R.menuOn) { R.sel = (R.sel + d + 4) % 4; R.menuT = R.time; return; }
+  if (!ready) return;
+  if (R.sleeping) return wake(false);
+  if (R.mode === 'play' || R.mode === 'dizzy') return;
+  const from = R.mode === 'walk' ? R.target : R.x;
+  R.target = clamp(from + d * 40, 40, WORLD - 40);
+  R.look = d; R.fast = true;
+  if (R.mode !== 'walk') setMode('walk');
+}
+window.addEventListener('scrollUp', () => wheel(-1));
+window.addEventListener('scrollDown', () => wheel(1));
 window.addEventListener('sideClick', () => {
   const n = performance.now();
   if (n - R.lastClick < 250) return;   // a double click arrives as two events ~50 ms apart
   R.lastClick = n; touched();
   if (R.panel) { if (R.prow < PANELS[R.panel]().length - 1) R.prow++; else closePanel(); return; }
-  act(R.sel);
+  if (!R.menuOn) { R.menuOn = true; R.menuT = R.time; return; }
+  R.menuOn = false; act(R.sel);
 });
 window.addEventListener('longPressStart', () => { touched(); if (R.panel) closePanel(); else if (R.sleeping) wake(false); else R.hold = true; });
 window.addEventListener('longPressEnd', () => { R.hold = false; });
@@ -656,7 +671,7 @@ function down(e) {
   if (Math.abs(x - sx) < 44 && y > fy - 100 && y < fy + 8) { R.touchPet = true; R.touchT = R.time; R.touchX = x; return; }
   // a tap on the scenery: Clawd walks over there
   if (R.sleeping) return wake(false);
-  if (!busyNow() || R.mode === 'walk') { R.target = clamp(R.cam + x, 40, WORLD - 40); setMode('walk'); R.look = Math.sign(R.target - R.x) || R.look; }
+  if (!busyNow() || R.mode === 'walk') { R.target = clamp(R.cam + x, 40, WORLD - 40); R.fast = false; setMode('walk'); R.look = Math.sign(R.target - R.x) || R.look; }
 }
 function up(e) {
   e.preventDefault();
