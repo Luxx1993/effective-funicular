@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.7.0';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -30,7 +30,7 @@ let MENU_Y = 246;                   // the menu strip over the bottom of the sce
 const BGS = MANI.bgscale;           // scenery image px per stage unit, shown 1:1
 const BGW = MANI.sw * BGS, BGH = MANI.h * BGS;   // 800 x 320: a long strip Clawd walks along
 const BG_YOFF = 55;                 // crop the sky so the floor line sits near y 205
-let BGF, WORLD, ITEM_W, PANEL_X, PANEL_W, PANEL_Y;   // set by layout(): the cropped scenery fills the height exactly, WORLD is the width Clawd walks in
+let BGF, WORLD, ITEM_W, PH, PY;   // set by layout(): the cropped scenery fills the height exactly, WORLD is the width Clawd walks in
 const K = 0.95 * 1.1;               // Clawd sheet px -> logical px
 const CELLW = MANI.cw * MANI.scale, CELLH = MANI.ch * MANI.scale;
 const SCENES = ['forest', 'space', 'city', 'desert', 'volcano', 'lab', 'night'];
@@ -59,7 +59,7 @@ function layout() {
   MENU_Y = H - INB - MENU_H;
   BGF = H / (BGH - BG_YOFF); WORLD = BGW * BGF;
   ITEM_W = (W - INL - INR) / 4;
-  PANEL_W = Math.min(216, W - INL - INR - 24); PANEL_X = INL + (W - INL - INR - PANEL_W) / 2; PANEL_Y = TOP + 6;
+  PH = sideways ? 96 : 116; PY = H - INB - PH;      // the Welt / Items picker opens in the menu's place, at the bottom
   cv.width = W * DPR; cv.height = H * DPR;           // resizing resets the context
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -96,7 +96,7 @@ const R = {
   hold: false, touchPet: false, touchT: 0, sleeping: false, sel: 0, lastClick: 0, lastTouch: 0, taps: [],
   P: [], say: null, dim: 0, petHeart: 0, jerk: 0, prev: null, shakeCool: 0, storageTag: '?',
   bg: null, sheet: null, bgKey: '', sheetKey: '', anim: '', animT0: 0, act: null,
-  panel: null, prow: 0, menuOn: false, menuT: 0, fast: false, amb: [], ambScene: '',
+  panel: null, prow: 0, pk: [], lift: 0, drag: null, menuOn: false, menuT: 0, fast: false, amb: [], ambScene: '',
 };
 layout();
 const floorY = () => (MANI.floors[S.scene] * BGS - BG_YOFF) * BGF;
@@ -360,29 +360,31 @@ function act(i) {
   if (!ready || R.panel) return;
   touched();
   if (R.sleeping) return wake(false);
-  if (i === 2) { R.panel = 'items'; R.prow = 0; return; }
-  if (i === 3) { R.panel = 'world'; R.prow = 0; return; }
+  if (i === 2) return openPanel('items');
+  if (i === 3) return openPanel('world');
   if (busyNow()) return;
   if (i === 0) setMode('play', { bounces: 0, cx: clamp(R.x, 100, WORLD - 100) });
   else { R.sleeping = true; setMode('sleep'); say('Gute Nacht…'); }
 }
+// pickers: each column is an endless drum (rolodex) that rolls to its value
 const PANELS = {
-  world: () => [['Ort', SCENE_DE[S.scene]], ['Stil', LOOK_DE[S.look] || S.look]],
-  items: () => [['Kopf', HATS[S.hat]], ['Gesicht', FACES[S.face]], ['Körper', BODIES[S.body]]],
+  world: [
+    { label: 'Ort', list: () => SCENES.map(k => SCENE_DE[k]), get: () => SCENES.indexOf(S.scene), set: i => { S.scene = SCENES[i]; loadWorld(); } },
+    { label: 'Stil', list: () => LOOKS.map(l => LOOK_DE[l.name] || l.name), get: () => LOOKS.findIndex(l => l.name === S.look), set: i => { S.look = LOOKS[i].name; loadWorld(); } },
+  ],
+  items: [
+    { label: 'Kopf', list: () => HATS, get: () => S.hat, set: i => { S.hat = i; } },
+    { label: 'Gesicht', list: () => FACES, get: () => S.face, set: i => { S.face = i; } },
+    { label: 'Körper', list: () => BODIES, get: () => S.body, set: i => { S.body = i; } },
+  ],
 };
-function changePanel(dir) {
-  const wrap = (v, n) => (v + dir + n) % n;
-  if (R.panel === 'world') {
-    if (R.prow === 0) S.scene = SCENES[wrap(SCENES.indexOf(S.scene), SCENES.length)];
-    else S.look = LOOKS[wrap(LOOKS.findIndex(l => l.name === S.look), LOOKS.length)].name;
-    loadWorld();
-  } else {
-    if (R.prow === 0) S.hat = wrap(S.hat, HATS.length);
-    else if (R.prow === 1) S.face = wrap(S.face, FACES.length);
-    else S.body = wrap(S.body, BODIES.length);
-  }
-  saveSoon();
+const mod = (v, n) => ((v % n) + n) % n;
+function openPanel(name) { R.panel = name; R.prow = 0; R.pk = PANELS[name].map(c => { const g = c.get(); return { pos: g, tgt: g }; }); }
+function rollTo(col, steps) {
+  const c = PANELS[R.panel][col], k = R.pk[col];
+  k.tgt += steps; c.set(mod(k.tgt, c.list().length)); saveSoon();
 }
+const changePanel = dir => rollTo(R.prow, dir);
 function closePanel() { R.panel = null; R.menuOn = false; touched(); saveSoon(); }
 
 // ---------- update ----------
@@ -400,6 +402,9 @@ function update(dt) {
   if (sx < 70) R.cam = R.x - 70; else if (sx > W - 70) R.cam = R.x - (W - 70);
   R.cam = clamp(R.cam, 0, WORLD - W);
   if (R.menuOn && R.time - R.menuT > 5) R.menuOn = false;
+  // the scene lifts so Clawd stays visible above the picker; the drums roll to their values
+  R.lift += ((R.panel ? Math.max(0, feetY() + 10 - PY) : 0) - R.lift) * Math.min(1, dt * 8);
+  if (R.panel) for (const k of R.pk) k.pos += (k.tgt - k.pos) * Math.min(1, dt * 14);
   if (!ready || R.panel) return;
 
   const m = R.mode, fy = feetY();
@@ -525,27 +530,36 @@ function drawMenu() {
   }
 }
 
-const ROW_H = 22;
-const panelH = () => 26 + PANELS[R.panel]().length * ROW_H + 8;
+// the picker: translucent strips with endless drums, the chosen value in the middle band
 function drawPanel() {
-  const u = ui(), rows = PANELS[R.panel](), h = panelH();
-  box(PANEL_X, PANEL_Y, PANEL_W, h);
-  txt(R.panel === 'world' ? 'Welt' : 'Items', PANEL_X + PANEL_W / 2, PANEL_Y + 13, { size: 10, fill: u.ink, align: 'center' });
-  rows.forEach(([k, v], i) => {
-    const y = PANEL_Y + 24 + i * ROW_H, on = i === R.prow;
-    if (on) { ctx.globalAlpha = .16; rect(PANEL_X + 8, y, PANEL_W - 16, ROW_H - 2, u.ink); ctx.globalAlpha = 1; rect(PANEL_X + 8, y + ROW_H - 4, PANEL_W - 16, 2, u.ink); }
-    txt(k, PANEL_X + 14, y + 6, { size: 7, fill: u.ink, alpha: on ? .9 : .55 });
-    txt(on ? '‹  ' + v + '  ›' : v, PANEL_X + PANEL_W / 2, y + 10, { size: 9, fill: u.ink, align: 'center', alpha: on ? 1 : .6 });
+  const u = ui(), cols = PANELS[R.panel], uw = W - INL - INR, cw = uw / cols.length, cy = PY + 18 + (PH - 18) / 2;
+  strip(0, PY, W, H - PY);
+  ctx.globalAlpha = .3; rect(0, PY, W, H - PY, u.bg); ctx.globalAlpha = 1;       // a little denser than the menu, for legibility
+  cols.forEach((c, ci) => {
+    const x0 = INL + ci * cw, on = ci === R.prow, k = R.pk[ci], list = c.list(), n = list.length;
+    txt(c.label, x0 + cw / 2, PY + 9, { size: 7, halo: true, align: 'center', alpha: on ? 1 : .55 });
+    strip(x0 + 3, cy - 11, cw - 6, 22, on);                                     // the band of the chosen value
+    const base = Math.round(k.pos);
+    for (let d = -2; d <= 2; d++) {
+      const o = base + d - k.pos, ang = o * .55;
+      if (Math.abs(ang) > 1.25) continue;
+      const sc = Math.cos(ang), y = cy + Math.sin(ang) * 40;
+      ctx.save(); ctx.translate(x0 + cw / 2, y); ctx.scale(1, sc);
+      txt(list[mod(base + d, n)], 0, 0, { size: 9 + 1.5 * sc, maxW: cw - 8, halo: true, align: 'center', alpha: clamp(sc * sc * (on ? 1 : .7) * 1.1, 0, 1) });
+      ctx.restore();
+    }
   });
 }
 
 function draw() {
   const cam = R.cam;
-  // scenery over the full height; its bottom row is stretched down to the screen edge
+  ctx.save(); ctx.translate(0, -Math.round(R.lift));
+  // scenery over the full height
   if (R.bg) {
     ctx.imageSmoothingEnabled = S.look !== 'pixel';
-    const iw = R.bg.naturalWidth, ih = R.bg.naturalHeight, k = iw / WORLD, y0 = BG_YOFF * iw / WORLD;
+    const iw = R.bg.naturalWidth, ih = R.bg.naturalHeight, k = iw / WORLD, y0 = BG_YOFF * iw / BGW;
     ctx.drawImage(R.bg, cam * k, y0, W * k, ih - y0, 0, 0, W, H);
+    if (R.lift > .5) ctx.drawImage(R.bg, cam * k, ih - 1, W * k, 1, 0, H - 1, W, R.lift + 2);   // lifted: carry the ground on under the picker
   } else rect(0, 0, W, H, '#101018');
 
   const fy = feetY(), c = drawClawd();
@@ -557,10 +571,10 @@ function draw() {
   drawAmbient(cam);
   drawBubble(c);
 
-  if (R.dim > .01) { ctx.globalAlpha = R.dim; rect(0, 0, W, H, '#05060f'); ctx.globalAlpha = 1; }
+  if (R.dim > .01) { ctx.globalAlpha = R.dim; rect(0, 0, W, H + 80, '#05060f'); ctx.globalAlpha = 1; }
+  ctx.restore();
   txt('v' + APP_VERSION + ' ' + R.storageTag, W - INR - 5, TOP + 8, { size: 7, halo: true, align: 'right', alpha: .6 });
-  drawMenu();
-  if (R.panel) drawPanel();
+  if (R.panel) drawPanel(); else drawMenu();
   if (!R.bg || !R.sheet || !ready) {
     rect(0, 130, W, 24, '#000'); ctx.fillStyle = '#fff'; ctx.font = 'bold 10px ' + MONO;
     ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('Lade…', W / 2, 142); ctx.textAlign = 'left';
@@ -643,7 +657,7 @@ window.addEventListener('sideClick', () => {
   const n = performance.now();
   if (n - R.lastClick < 250) return;   // a double click arrives as two events ~50 ms apart
   R.lastClick = n; touched();
-  if (R.panel) { if (R.prow < PANELS[R.panel]().length - 1) R.prow++; else closePanel(); return; }
+  if (R.panel) { if (R.prow < PANELS[R.panel].length - 1) R.prow++; else closePanel(); return; }
   if (!R.menuOn) { R.menuOn = true; R.menuT = R.time; return; }
   R.menuOn = false; act(R.sel);
 });
@@ -660,10 +674,10 @@ function down(e) {
   e.preventDefault(); touched();
   const [x, y] = pos(e);
   if (R.panel) {
-    const rows = PANELS[R.panel]().length, h = panelH();
-    if (x < PANEL_X || x > PANEL_X + PANEL_W || y < PANEL_Y || y > PANEL_Y + h) return closePanel();
-    const row = Math.floor((y - PANEL_Y - 24) / ROW_H);
-    if (row >= 0 && row < rows) { R.prow = row; changePanel(x < W / 2 ? -1 : 1); }
+    if (y < PY) return closePanel();           // a tap above the picker closes it
+    const cw = (W - INL - INR) / PANELS[R.panel].length;
+    R.drag = { x, y, col: clamp(Math.floor((x - INL) / cw), 0, PANELS[R.panel].length - 1), acc: 0, moved: false };
+    R.prow = R.drag.col;
     return;
   }
   if (y >= MENU_Y) { R.sel = clamp(Math.floor((x - INL) / ITEM_W), 0, 3); act(R.sel); return; }
@@ -673,12 +687,31 @@ function down(e) {
   if (R.sleeping) return wake(false);
   if (!busyNow() || R.mode === 'walk') { R.target = clamp(R.cam + x, 40, WORLD - 40); R.fast = false; setMode('walk'); R.look = Math.sign(R.target - R.x) || R.look; }
 }
+function move(e) {
+  if (!R.drag || !R.panel) return;
+  e.preventDefault();
+  const [, y] = pos(e), d = R.drag;
+  while (Math.abs(y - d.y - d.acc) >= 18) {       // swipe up = next value, like turning a drum
+    const dir = (y - d.y - d.acc) < 0 ? 1 : -1;
+    d.acc += -dir * 18; d.moved = true; rollTo(d.col, dir);
+  }
+}
 function up(e) {
   e.preventDefault();
+  if (R.drag) {
+    const d = R.drag; R.drag = null;
+    if (!d.moved) {                                // a tap on a drum row rolls it there
+      const cy = PY + 18 + (PH - 18) / 2, dy = d.y - cy;
+      if (Math.abs(dy) > 11) rollTo(d.col, (dy < 0 ? -1 : 1) * (Math.abs(dy) > 32 ? 2 : 1));
+    }
+    return;
+  }
   if (R.touchPet && R.time - R.touchT <= .25) tapReact();
   R.touchPet = false;
 }
 document.body.addEventListener('touchstart', down, { passive: false });
+document.body.addEventListener('touchmove', move, { passive: false });
+document.body.addEventListener('mousemove', move);
 document.body.addEventListener('touchend', up, { passive: false });
 document.body.addEventListener('touchcancel', up, { passive: false });
 document.body.addEventListener('mousedown', down);
