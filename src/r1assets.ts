@@ -54,7 +54,7 @@ for (const look of LOOK_NAMES) {
       cells += `<g transform="translate(${k * CW} ${row * CH})">${pixelArt ? `<g filter="url(#sc-pixelize-claude)">${g}</g>` : g}</g>`
     }
   })
-  const defs = pixelArt ? `<defs>${PIXELIZE(SW, { x: 0, y: 0, w: CW, h: CH })}</defs>` : (L.art?.defs ? '' : '')
+  const defs = (pixelArt ? `<defs>${PIXELIZE(SW, { x: 0, y: 0, w: CW, h: CH })}</defs>` : '') + (L.art?.defs ? `<defs>${L.art.defs(SW, 128)}</defs>` : '')
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${COLS * CW * SCALE}" height="${names.length * CH * SCALE}" viewBox="0 0 ${COLS * CW} ${names.length * CH}">${defs}${cells}</svg>`
   writeFileSync(`${out}/sheet-${look}.svg`, svg)
 }
