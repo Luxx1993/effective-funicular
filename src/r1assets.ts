@@ -59,12 +59,39 @@ for (const look of LOOK_NAMES) {
   writeFileSync(`${out}/sheet-${look}.svg`, svg)
 }
 
+
+// ---- anchors for hats, glasses and the like: where the head, the eyes and the body are in every frame (cell asset px)
+const avg = (pts: readonly (readonly [number, number])[]) => [pts.reduce((a, q) => a + q[0], 0) / pts.length, pts.reduce((a, q) => a + q[1], 0) / pts.length] as const
+const r1 = (v: number) => Math.round(v * 10) / 10
+const anchors: Record<string, number[][]> = {}
+for (const n of names) {
+  const m = MOTIONS[n]!
+  anchors[n] = []
+  for (let k = 0; k < m.frames; k++) {
+    const model = build({ ...POSE0, ...m.pose(k / m.frames) }, s)
+    const body = model.parts.find(p => p.name === 'body')!
+    const xs = body.hull.map(q => q[0]), ys = body.hull.map(q => q[1])
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
+    const top = body.faces.find(f => f.name === 'top')
+    const [hx, hy] = top ? avg(top.pts) : [(minX + maxX) / 2, minY]
+    let ex = (minX + maxX) / 2, ey = minY + (maxY - minY) * 0.3, ed = (maxX - minX) * 0.45, ang = 0, vis = 0
+    if (model.eyes.length >= 2) {
+      const c = model.eyes.map(e => avg((e.poly ?? e.line)!))
+      const [l, r] = c[0]![0] < c[1]![0] ? [c[0]!, c[1]!] : [c[1]!, c[0]!]
+      ex = (l[0] + r[0]) / 2; ey = (l[1] + r[1]) / 2; ed = Math.hypot(r[0] - l[0], r[1] - l[1]); ang = Math.atan2(r[1] - l[1], r[0] - l[0]); vis = 1
+    }
+    const cell = (x: number, y: number) => [r1((CW / 2 + x) * SCALE), r1((CH - 6 + y) * SCALE)]
+    const [chx, chy] = cell(hx, hy), [cex, cey] = cell(ex, ey)
+    anchors[n]!.push([chx!, chy!, r1((maxX - minX) * SCALE), r1((maxY - minY) * SCALE), cex!, cey!, r1(ed * SCALE), Math.round(ang * 1000) / 1000, vis])
+  }
+}
+
 // ---- look metadata + font
 const looks = LOOK_NAMES.map(name => {
   const L = LOOKS[name]!
   return { name, label: L.label, card: L.paper?.card ?? '#f6f1e7', ink: L.paper?.ink ?? '#2b2420', accent: L.titleColor ?? '#d97757', edge: L.edge ?? L.art?.sky ?? '#1b1b2b' }
 })
 writeFileSync(`${out}/looks.json`, JSON.stringify(looks))
-writeFileSync(`${out}/manifest.json`, JSON.stringify(manifest))
+writeFileSync(`${out}/manifest.json`, JSON.stringify({ ...manifest, anchors }))
 writeFileSync(`${out}/mono.b64.json`, JSON.stringify({ regular: MONOCRAFT, bold: MONOCRAFT_BOLD }))
 console.log('ok', LOOK_NAMES.length, 'looks', names.length, 'motions', COLS, 'cols')

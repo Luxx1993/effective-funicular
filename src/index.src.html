@@ -15,24 +15,26 @@
 <body>
 <canvas id="c" width="240" height="282"></canvas>
 <script>
-'use strict';
-// Clawd, a tamagotchi diorama. Scenery, styles and Clawd's animations come from the
+// Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.4.0';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
 const W = 240, H = 282;
-const TOP = 40;                     // the OS bar covers the top 40 px: HUD starts below
+const TOP = 40;                     // the OS bar covers the top 40 px
 const MENU_Y = 246;                 // the menu strip over the bottom of the scenery
 const BGS = MANI.bgscale;           // scenery image px per stage unit, shown 1:1
-const BGW = MANI.sw * BGS, BGH = MANI.h * BGS;   // 800 x 320
+const BGW = MANI.sw * BGS, BGH = MANI.h * BGS;   // 800 x 320: a long strip Clawd walks along
 const BG_YOFF = 55;                 // crop the sky so the floor line sits near y 205
-const K = 0.95;                     // Clawd sheet px -> logical px
+const K = 0.95 * 1.1;               // Clawd sheet px -> logical px
 const CELLW = MANI.cw * MANI.scale, CELLH = MANI.ch * MANI.scale;
 const SCENES = ['forest', 'space', 'city', 'desert', 'volcano', 'lab', 'night'];
 const SCENE_DE = { forest: 'Wald', space: 'Weltraum', city: 'Stadt', desert: 'Wüste', volcano: 'Vulkan', lab: 'Labor', night: 'Dorf' };
 const LOOK_DE = { pixel: 'Pixel Art', original: 'Original', cave: 'Höhle', blueprint: 'Blaupause', mosaic: 'Mosaik', aero: 'Frutiger Aero', engraving: 'Kupferstich', tapestry: 'Wandteppich', golden: 'Golden Age', ukiyoe: 'Ukiyo-e', kamon: 'Kamon' };
+const HATS = ['Nichts', 'Partyhut', 'Zylinder', 'Krone', 'Mütze', 'Propeller'];
+const FACES = ['Nichts', 'Brille', 'Sonnenbrille', 'Schnurrbart'];
+const BODIES = ['Nichts', 'Schleife', 'Schal'];
 
 const cv = document.getElementById('c');
 const DPR = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1)));
@@ -43,69 +45,22 @@ ctx.scale(DPR, DPR);
 const rect = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const pick = a => a[Math.floor(Math.random() * a.length)];
 
 // ---------- state ----------
-const S = { hunger: 70, fun: 70, energy: 80, clean: 80, xp: 0, born: Date.now(), last: Date.now(), scene: 'forest', look: 'original' };
+const S = { scene: 'forest', look: 'original', hat: 0, face: 0, body: 0, born: Date.now() };
 let ready = false;
 const R = {
-  x: 240, ox: 0, look: 1, mode: 'idle', t: 0, wait: 2, target: 240, hop: 0, time: 0, happy: 0, greet: 3,
-  hold: false, touchPet: false, sleeping: false, sel: 0, lastClick: 0,
-  bugs: [], P: [], say: null, dim: 0, evolved: false, petHeart: 0, petXp: 0,
-  careT: 0, jerk: 0, prev: null, shakeCool: 0, storageTag: '?',
-  bg: null, sheet: null, bgKey: '', sheetKey: '', anim: '', animT0: 0,
-  panel: false, prow: 0, amb: [], ambScene: '',
+  x: 240, cam: 0, ox: 0, look: 1, mode: 'idle', t: 0, wait: 1.5, target: 240, time: 0, greet: 3,
+  hold: false, touchPet: false, touchT: 0, sleeping: false, sel: 0, lastClick: 0, lastTouch: 0, taps: [],
+  P: [], say: null, dim: 0, petHeart: 0, jerk: 0, prev: null, shakeCool: 0, storageTag: '?',
+  bg: null, sheet: null, bgKey: '', sheetKey: '', anim: '', animT0: 0, act: null,
+  panel: null, prow: 0, amb: [], ambScene: '',
 };
-const STAGES = ['Baby-Clawd', 'Clawd', 'Mega-Clawd'];
-const XP_AT = [0, 150, 500];
-const SIZE = [0.75, 1, 1.25];
-const stage = () => (S.xp >= XP_AT[2] ? 2 : S.xp >= XP_AT[1] ? 1 : 0);
-const sz = () => SIZE[stage()];
 const floorY = () => MANI.floors[S.scene] * BGS - BG_YOFF;
 const feetY = () => Math.min(floorY() + 14, MENU_Y - 10);
-const camX = () => clamp(R.x - W / 2, 0, BGW - W);
-const petting = () => (R.hold || R.touchPet) && !R.sleeping && (R.mode === 'idle' || R.mode === 'walk') && !R.panel;
+const petting = () => (R.hold || (R.touchPet && R.time - R.touchT > .25)) && !R.sleeping && (R.mode === 'idle' || R.mode === 'walk') && !R.panel;
 const busyNow = () => !(R.mode === 'idle' || R.mode === 'walk');
-
-function mood() {
-  const m = Math.min(S.hunger, S.fun, S.energy, S.clean);
-  const a = (S.hunger + S.fun + S.energy + S.clean) / 4;
-  return m < 25 ? 'sad' : a > 70 ? 'happy' : 'ok';
-}
-function setMode(m, data) { R.mode = m; R.t = 0; Object.assign(R, data || {}); }
-function idle(w) { setMode('idle', { wait: w == null ? rnd(1.5, 4) : w }); }
-function say(text, dur) { R.say = { text, t: 0, dur: dur || 2 }; }
-function gainXp(n) {
-  const old = stage();
-  S.xp += n;
-  if (stage() > old) R.evolved = true;
-}
-function endAction(happyFor) {
-  R.happy = happyFor || 0;
-  if (R.evolved) { R.evolved = false; cheer(); } else idle(1.5);
-}
-function cheer() {
-  setMode('cheer');
-  say('Level up!', 2.2);
-  const fy = feetY();
-  for (let i = 0; i < 30; i++)
-    R.P.push({ kind: 'rect', x: R.x, y: fy - 50, vx: rnd(-70, 70), vy: rnd(-150, -40), g: 220, life: rnd(1, 1.8),
-               s: 3, col: ['#ffd24a', '#ff5c7a', '#33b5b0', '#fff', '#D97757'][i % 5] });
-}
-function wake(grumpy) {
-  R.sleeping = false; R.happy = 0;
-  idle(1.5);
-  say(grumpy ? 'Hey! Ich schlief!' : S.energy < 40 ? 'Noch müde…' : 'Guten Morgen!', 2);
-}
-
-const QUIPS = ['git push!', 'Kompiliert!', 'Kein Bug :)', 'npm i …', 'Ship it!', 'Mehr Tokens?', 'Hallo!', 'Tests grün!'];
-function quip() {
-  if (S.hunger < 30) return say('Hunger…');
-  if (S.energy < 25) return say('So müde…');
-  if (S.fun < 30) return say('Spiel mit mir!');
-  if (S.clean < 40) return say('Bugs überall!');
-  say(QUIPS[Math.floor(Math.random() * QUIPS.length)]);
-}
-
 // ---------- the styles: icons, frames and type follow the scenery's art style ----------
 const MONO = 'Monocraft, ui-monospace, monospace';
 const SERIF = "Georgia, 'Times New Roman', serif";
@@ -133,7 +88,7 @@ const STY = {
                tones: { feed: ['#ffd23f', '#9f3c24'], play: ['#d63a2a', '#fffbe8', '#16120f'], sleep: ['#fffbe8'], clean: ['#16120f', '#ffd23f'], heart: ['#d63a2a'], bug: ['#2f6a24', '#16120f'] } },
   ukiyoe:    { font: SERIF, fs: 1.1, ink: '#1a2238', lw: .8, frame: 'seal',
                tones: { feed: ['#e2b437', '#93402a'], play: ['#3a62a0', '#f6f1e4', '#1d3866'], sleep: ['#f6f1e4'], clean: ['#1a2238', '#e2b437'], heart: ['#b8322a'], bug: ['#1d3866', '#b8322a'] } },
-  kamon:     { font: SERIF, fs: 1.1, ink: '#1a1816', lw: 0, frame: 'thin',
+  kamon:     { font: SERIF, fs: 1.1, ink: '#1a1816', lw: 0, frame: 'thin', dark: '#8a8372',
                tones: { feed: ['#eee7d7', '#1a1816'], play: ['#eee7d7', '#1a1816', '#1a1816'], sleep: ['#eee7d7'], clean: ['#eee7d7', '#eee7d7'], heart: ['#eee7d7'], bug: ['#eee7d7', '#1a1816'] } },
 };
 const STYLE = () => STY[S.look] || STY.original;
@@ -156,14 +111,29 @@ const SHAPES = {
   heart: [{ t: 'p', d: 'M8 14.5 C-1 8 2 1.5 8 5 C14 1.5 17 8 8 14.5Z', r: 0 }],
   bug:   [{ t: 'e', a: [7.5, 9, 5.5, 3.8], r: 0 }, { t: 'c', a: [13.3, 9, 2.3], r: 1 }, { t: 'l', a: [4, 12, 3, 15], r: 1, s: 1.2 }, { t: 'l', a: [8, 12.5, 8, 15.5], r: 1, s: 1.2 }, { t: 'l', a: [11, 12, 12, 15], r: 1, s: 1.2 }, { t: 'l', a: [14, 7, 15.5, 4], r: 1, s: 1 }],
 };
+// accessories share the icon pipeline, so they take on the style too; roles: 0 main, 1 gold, 2 accent, 3 light, 4 dark
+Object.assign(SHAPES, {
+  hat1: [{ t: 'p', d: 'M8 .5 L13.5 14 L2.5 14Z', r: 0 }, { t: 'p', d: 'M6.2 9 L9.8 9 L11 12 L5 12Z', r: 1 }, { t: 'c', a: [8, 1.3, 1.7], r: 2 }],
+  hat2: [{ t: 'p', d: 'M1 13 L15 13 L15 14.8 L1 14.8Z', r: 4 }, { t: 'p', d: 'M3.5 2 L12.5 2 L12.5 13 L3.5 13Z', r: 4 }, { t: 'p', d: 'M3.5 9.6 L12.5 9.6 L12.5 12 L3.5 12Z', r: 2 }],
+  hat3: [{ t: 'p', d: 'M1.5 14 L1.5 5 L5 9 L8 3 L11 9 L14.5 5 L14.5 14Z', r: 1 }, { t: 'c', a: [8, 11, 1.2], r: 2, n: 1 }, { t: 'c', a: [4.2, 11.6, 1], r: 0, n: 1 }, { t: 'c', a: [11.8, 11.6, 1], r: 0, n: 1 }],
+  hat4: [{ t: 'p', d: 'M2 14 Q2 3.5 8 3.5 Q14 3.5 14 14Z', r: 0 }, { t: 'p', d: 'M1.5 11 L14.5 11 L14.5 14.5 L1.5 14.5Z', r: 3 }, { t: 'c', a: [8, 2.6, 2], r: 2 }],
+  hat5: [{ t: 'p', d: 'M3 14 Q3 7.5 8 7.5 Q13 7.5 13 14Z', r: 2 }, { t: 'l', a: [8, 7.5, 8, 4.8], r: 4, s: 1.2 }, { t: 'e', a: [4.2, 4.4, 3.6, 1.1], r: 0 }, { t: 'e', a: [11.8, 4.4, 3.6, 1.1], r: 1 }, { t: 'c', a: [8, 4.7, 1], r: 4, n: 1 }],
+  face1: [{ t: 'c', a: [4.2, 8, 3], r: 4, s: 1.2 }, { t: 'c', a: [11.8, 8, 3], r: 4, s: 1.2 }, { t: 'l', a: [7.2, 7.6, 8.8, 7.6], r: 4, s: 1.1 }],
+  face2: [{ t: 'p', d: 'M1 5.5 L7 5.5 L6.6 10 Q5.8 11.8 4 11.8 Q1.6 11.8 1 9.5Z', r: 4 }, { t: 'p', d: 'M9 5.5 L15 5.5 L15 9.5 Q14.4 11.8 12 11.8 Q10.2 11.8 9.4 10Z', r: 4 }, { t: 'l', a: [7, 6.4, 9, 6.4], r: 4, s: 1.4 }, { t: 'l', a: [2.4, 7.4, 3.6, 6.7], r: 3, s: .9 }],
+  face3: [{ t: 'p', d: 'M8 6 Q6 4.2 3.4 5 Q1 6 2 8.6 Q4.2 6.9 8 8.3 Q11.8 6.9 14 8.6 Q15 6 12.6 5 Q10 4.2 8 6Z', r: 4 }],
+  body1: [{ t: 'p', d: 'M8 8 L1.5 3.5 L1.5 12.5Z', r: 2 }, { t: 'p', d: 'M8 8 L14.5 3.5 L14.5 12.5Z', r: 2 }, { t: 'c', a: [8, 8, 1.9], r: 0 }],
+  body2: [{ t: 'p', d: 'M10 9 L14 9.6 L13.4 15 L9.4 14.4Z', r: 0 }, { t: 'p', d: 'M.8 4.4 Q8 8.4 15.2 4.4 L15.2 10 Q8 14 .8 10Z', r: 2 }],
+});
+const ACC = n => /^(hat|face|body)\d$/.test(n);
+const accTones = st => { const t = st.tones; const dark = st.dark || (lum(st.ink) < .45 ? st.ink : (t.play[2] || t.feed[1])); return [t.play[0], t.feed[0], t.heart[0], t.sleep[0], dark]; };
 const ICACHE = {};
 function iconCanvas(name, size) {
   const st = STYLE(), key = S.look + name + size;
   if (ICACHE[key]) return ICACHE[key];
-  const out = Math.max(8, Math.round(size * DPR)), res = st.px || out;
+  const out = Math.max(8, Math.round(size * DPR)), res = st.px ? st.px * (ACC(name) ? 2 : 1) : out;
   const c = document.createElement('canvas'); c.width = c.height = res;
   const g = c.getContext('2d'); g.scale(res / 16, res / 16); g.lineJoin = g.lineCap = 'round';
-  const tn = st.tones[name];
+  const tn = st.tones[name] || accTones(st);
   for (const sh of SHAPES[name]) {
     let p = new Path2D();
     if (sh.t === 'c') p.arc(sh.a[0], sh.a[1], sh.a[2], 0, 6.2832);
@@ -274,7 +244,6 @@ function loadWorld() {
   wantBg = bk; wantSheet = sk;
   if (bk !== R.bgKey) loadImg('assets/bg-' + bk + '.webp', im => { if (wantBg === bk) { R.bg = im; R.bgKey = bk; } });
   if (sk !== R.sheetKey) loadImg('assets/sheet-' + sk + '.webp', im => { if (wantSheet === sk) { R.sheet = im; R.sheetKey = sk; } });
-  R.bugs = R.bugs.map(b => ({ ...b, y: clamp(b.y, feetY() - 4, MENU_Y - 20) }));
   makeAmbient();
 }
 
@@ -310,144 +279,127 @@ function drawAmbient(cam) {
   ctx.globalAlpha = 1;
 }
 
-// ---------- actions ----------
+
+// ---------- behaviour ----------
+function setMode(m, data) { R.mode = m; R.t = 0; Object.assign(R, data || {}); }
+function idle(w) { setMode('idle', { wait: w == null ? rnd(1.5, 4) : w }); }
+function say(text, dur) { R.say = { text, t: 0, dur: dur || 2 }; }
+function startAct(anim, dur, text) { setMode('act', { act: { anim, dur } }); if (text) say(text, Math.max(1.4, dur)); }
+function wake(grumpy) {
+  R.sleeping = false;
+  idle(1.5);
+  say(grumpy ? 'Hey! Ich schlief!' : 'Guten Morgen!', 2);
+}
+const QUIPS = ['git push!', 'Kompiliert!', 'Kein Bug :)', 'npm i …', 'Ship it!', 'Hallo!', 'Tests grün!', 'Schick sieht das aus!'];
+function hearts(n) {
+  for (let i = 0; i < n; i++) R.P.push({ kind: 'heart', x: R.x + rnd(-16, 16), y: feetY() - 90, vx: rnd(-10, 10), vy: -30 - i * 4, life: 1.2 });
+}
+function touched() { R.lastTouch = R.time; }
+
+// a short tap on Clawd: he reacts; poke him four times in a row and he gets dizzy
+function tapReact() {
+  touched();
+  if (R.sleeping) return wake(true);
+  if (R.mode === 'dizzy') return;
+  R.taps = R.taps.filter(t => R.time - t < 1.4); R.taps.push(R.time);
+  if (R.taps.length >= 4) { R.taps = []; setMode('dizzy'); return say('Hör auf, mir wird schwindlig!', 2); }
+  hearts(1);
+  const r = Math.random();
+  if (r < .3) startAct('wave', 1.6, pick(['Hallo!', 'Hi!', 'Na du!']));
+  else if (r < .55) startAct('happy', 1.4, pick(['Hihi!', 'Kitzelt!', 'Mehr!']));
+  else if (r < .75) startAct('spin', 1.2, 'Wheee!');
+  else if (r < .9) startAct('celebrate', 1.4, 'Juhu!');
+  else startAct('dance', 1.8, pick(QUIPS));
+}
+
+// ---------- menu ----------
 function act(i) {
-  if (!ready) return;
-  if (R.panel) return;
+  if (!ready || R.panel) return;
+  touched();
   if (R.sleeping) return wake(false);
+  if (i === 2) { R.panel = 'items'; R.prow = 0; return; }
+  if (i === 3) { R.panel = 'world'; R.prow = 0; return; }
   if (busyNow()) return;
-  if (i === 0) {
-    if (S.hunger >= 92) { setMode('refuse'); say('Satt!', 1.2); }
-    else setMode('eat', { bites: 0 });
-  } else if (i === 1) {
-    if (S.energy < 15) { setMode('refuse'); say('Zu müde…', 1.2); }
-    else setMode('play', { bounces: 0, cx: clamp(R.x, 100, BGW - 100) });
-  } else if (i === 2) {
-    R.sleeping = true; setMode('sleep'); say('Gute Nacht…');
-  } else if (i === 3) {
-    setMode('clean', { sweep: -10 });
-    if (S.clean >= 95) say('Schon sauber!', 1.3);
+  if (i === 0) setMode('play', { bounces: 0, cx: clamp(R.x, 100, BGW - 100) });
+  else { R.sleeping = true; setMode('sleep'); say('Gute Nacht…'); }
+}
+const PANELS = {
+  world: () => [['Ort', SCENE_DE[S.scene]], ['Stil', LOOK_DE[S.look] || S.look]],
+  items: () => [['Kopf', HATS[S.hat]], ['Gesicht', FACES[S.face]], ['Körper', BODIES[S.body]]],
+};
+function changePanel(dir) {
+  const wrap = (v, n) => (v + dir + n) % n;
+  if (R.panel === 'world') {
+    if (R.prow === 0) S.scene = SCENES[wrap(SCENES.indexOf(S.scene), SCENES.length)];
+    else S.look = LOOKS[wrap(LOOKS.findIndex(l => l.name === S.look), LOOKS.length)].name;
+    loadWorld();
   } else {
-    R.panel = true; R.prow = 0;
+    if (R.prow === 0) S.hat = wrap(S.hat, HATS.length);
+    else if (R.prow === 1) S.face = wrap(S.face, FACES.length);
+    else S.body = wrap(S.body, BODIES.length);
   }
   saveSoon();
 }
-function changeWorld(dir) {
-  if (R.prow === 0) S.scene = SCENES[(SCENES.indexOf(S.scene) + dir + SCENES.length) % SCENES.length];
-  else { const i = LOOKS.findIndex(l => l.name === S.look); S.look = LOOKS[(i + dir + LOOKS.length) % LOOKS.length].name; }
-  loadWorld(); saveSoon();
-}
-function closePanel() { R.panel = false; saveSoon(); }
+function closePanel() { R.panel = null; touched(); saveSoon(); }
 
 // ---------- update ----------
-function decay(dt) {
-  const z = R.sleeping;
-  S.hunger -= (z ? 0.008 : 0.016) * dt;
-  S.fun -= (z ? 0.004 : 0.014) * dt;
-  S.clean -= (z ? 0.004 : 0.011) * dt;
-  S.energy += (z ? 0.6 : -0.010) * dt;
-  for (const k of ['hunger', 'fun', 'energy', 'clean']) S[k] = clamp(S[k], 0, 100);
-  R.careT += dt;
-  if (R.careT >= 60) { R.careT = 0; if (Math.min(S.hunger, S.fun, S.energy, S.clean) >= 40) gainXp(1); }
-}
-function bugTarget() { return S.clean < 75 ? Math.min(5, Math.ceil((75 - S.clean) / 16)) : 0; }
-function syncBugs() {
-  const n = bugTarget();
-  while (R.bugs.length < n)
-    R.bugs.push({ x: rnd(30, BGW - 30), y: rnd(feetY() - 4, MENU_Y - 20), dir: Math.random() < .5 ? -1 : 1, v: rnd(5, 12), ph: 0 });
-  while (R.bugs.length > n) puff(R.bugs.shift());
-}
-function puff(b) {
-  for (let i = 0; i < 6; i++)
-    R.P.push({ kind: 'rect', x: b.x + 6, y: b.y + 4, vx: rnd(-40, 40), vy: rnd(-50, -5), g: 120, life: .5, s: 2, col: '#7fe07f' });
-}
-
 function update(dt) {
-  R.time += dt; R.t += dt; R.ox = 0; R.hop = 0;
+  R.time += dt; R.t += dt; R.ox = 0;
   R.dim += ((R.sleeping ? 0.5 : 0) - R.dim) * Math.min(1, dt * 3);
   if (R.say) { R.say.t += dt; if (R.say.t > R.say.dur) R.say = null; }
-  if (R.happy > 0) R.happy -= dt;
   if (R.greet > 0) R.greet -= dt;
   R.shakeCool -= dt; R.jerk *= 0.9;
   updateAmbient(dt);
-
   R.P = R.P.filter(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g || 0) * dt; return (p.life -= dt) > 0; });
-  for (const b of R.bugs) {
-    b.ph += dt * 6; b.x += b.dir * b.v * dt;
-    if (b.x < 10 || b.x > BGW - 20) b.dir = -b.dir;
-    if (Math.random() < dt * .3) b.dir = -b.dir;
-  }
-  if (!ready) return;
-  decay(dt);
-  if (Math.floor(R.time) !== Math.floor(R.time - dt)) syncBugs();
-  if (R.panel) return;
+  if (petting()) R.lastTouch = R.time;
+  // the camera follows only when Clawd gets near the edge of the screen, so he really walks across the scenery
+  const sx = R.x - R.cam;
+  if (sx < 70) R.cam = R.x - 70; else if (sx > W - 70) R.cam = R.x - (W - 70);
+  R.cam = clamp(R.cam, 0, BGW - W);
+  if (!ready || R.panel) return;
 
-  const m = R.mode, sc = sz(), fy = feetY(), headY = fy - 76 * sc;
+  const m = R.mode, fy = feetY();
   if (m === 'idle' || m === 'walk') {
-    if (R.evolved) { R.evolved = false; return cheer(); }
-    if (S.energy <= 2) { R.sleeping = true; setMode('sleep'); say('zZz…'); return; }
     if (petting()) {
       if (m === 'walk') idle(1);
-      S.fun = Math.min(100, S.fun + 4 * dt);
-      R.petHeart -= dt; R.petXp += dt;
-      if (R.petHeart <= 0) {
-        R.petHeart = .4;
-        R.P.push({ kind: 'heart', x: R.x + rnd(-14, 14), y: headY, vx: rnd(-8, 8), vy: -28, life: 1.2 });
-      }
-      if (R.petXp >= 4) { R.petXp = 0; gainXp(1); }
+      R.petHeart -= dt;
+      if (R.petHeart <= 0) { R.petHeart = .45; hearts(1); }
       return;
     }
   }
   if (m === 'idle') {
     R.wait -= dt;
+    if (R.time - R.lastTouch > 120) { R.sleeping = true; setMode('sleep'); return say('zZz…'); }   // nobody around: he dozes off
     if (R.wait <= 0) {
-      if (Math.random() < .4) quip();
-      R.target = rnd(40, BGW - 40);
-      if (Math.abs(R.target - R.x) < 30) R.target = clamp(R.x + (Math.random() < .5 ? -80 : 80), 40, BGW - 40);
-      setMode('walk');
+      const r = Math.random();
+      if (Math.random() < .3) say(pick(QUIPS));
+      if (r < .62) {
+        R.target = clamp(R.x + (Math.random() < .5 ? -1 : 1) * rnd(90, 280), 40, BGW - 40);
+        if (Math.abs(R.target - R.x) < 40) R.target = R.x < BGW / 2 ? R.x + 200 : R.x - 200;
+        setMode('walk');
+      } else if (r < .72) startAct('wave', 1.6);
+      else if (r < .82) startAct('spin', 1.2);
+      else if (r < .9) startAct('dance', 2);
+      else if (r < .96) startAct('happy', 1.4);
+      else startAct('shrug', 1.8, '…?');
     }
   } else if (m === 'walk') {
-    const d = R.target - R.x, sp = mood() === 'sad' ? 16 : 28;
+    const d = R.target - R.x;
     R.look = Math.sign(d) || R.look;
-    R.x += Math.sign(d) * Math.min(Math.abs(d), sp * dt);
+    R.x += Math.sign(d) * Math.min(Math.abs(d), 36 * dt);
     if (Math.abs(d) < 1.5) idle();
-  } else if (m === 'eat') {
-    const t = R.t, b = t < .7 ? 0 : Math.floor((t - .7) / .4) + 1;
-    if (b > R.bites && b <= 4) {
-      R.bites = b; S.hunger = Math.min(100, S.hunger + 8);
-      for (let i = 0; i < 4; i++)
-        R.P.push({ kind: 'rect', x: R.x, y: fy - 38 * sc, vx: rnd(-35, 35), vy: rnd(-40, -5), g: 160, life: .5, s: 2, col: '#E8B64C' });
-    }
-    if (t > 2.5) { gainXp(4); say('Lecker!'); endAction(1.5); }
+  } else if (m === 'act') {
+    if (R.t > R.act.dur) idle(1.2);
   } else if (m === 'play') {
-    const T = .7, n = Math.floor(R.t / T);
-    if (n > R.bounces) { R.bounces = n; S.fun = Math.min(100, S.fun + 7); gainXp(1); }
-    const nx = clamp(R.cx + Math.sin(R.t * 1.5) * 50, 40, BGW - 40);
+    const nx = clamp(R.cx + Math.sin(R.t * 1.5) * 60, 40, BGW - 40);
     R.look = Math.sign(nx - R.x) || R.look; R.x = nx;
-    if (R.t >= 4.2) {
-      S.energy = Math.max(0, S.energy - 8); S.hunger = Math.max(0, S.hunger - 4);
-      gainXp(4); say('Das war toll!'); endAction(1.5);
-    }
-  } else if (m === 'clean') {
-    R.sweep = -10 + R.t / 1.6 * (BGW + 20);
-    for (let i = R.bugs.length - 1; i >= 0; i--)
-      if (R.bugs[i].x < R.sweep) { puff(R.bugs[i]); R.bugs.splice(i, 1); }
-    for (let i = 0; i < 2; i++)
-      R.P.push({ kind: 'rect', x: R.sweep, y: rnd(floorY() + 6, MENU_Y - 6), vx: -20, vy: rnd(-20, 0), life: .5, s: 2, col: Math.random() < .5 ? '#fff' : '#9fe3ff' });
-    // Clawd follows the sweep
-    R.x += (clamp(R.sweep - 30, 40, BGW - 40) - R.x) * Math.min(1, dt * 4);
-    if (R.t > 1.8) { S.clean = Math.min(100, S.clean + 55); gainXp(5); say('Sauber!'); syncBugs(); endAction(1.5); }
+    if (R.t >= 4.2) { say('Das war toll!'); startAct('happy', 1.4); }
   } else if (m === 'sleep') {
     if (Math.floor(R.t) !== Math.floor(R.t - dt))
-      R.P.push({ kind: 'text', text: 'Z', s: 10 + Math.floor(Math.random() * 5), x: R.x + 12 * sc, y: headY, vx: 8, vy: -14, life: 2 });
-    if (S.energy >= 100) { gainXp(3); wake(false); }
+      R.P.push({ kind: 'text', text: 'Z', s: 10 + Math.floor(Math.random() * 5), x: R.x + 14, y: fy - 92, vx: 8, vy: -14, life: 2 });
   } else if (m === 'dizzy') {
     R.ox = Math.sin(R.t * 12) * 2;
-    if (R.t > 1.8) { say('Uff… schwindlig'); idle(1.5); }
-  } else if (m === 'refuse') {
-    if (R.t > 1.8) idle(1);
-  } else if (m === 'cheer') {
-    if (R.t > 2.2) idle(1);
+    if (R.t > 1.8) idle(1.5);
   }
 }
 
@@ -456,37 +408,39 @@ function animFor() {
   const m = R.mode;
   if (R.sleeping || m === 'sleep') return 'sleep';
   if (m === 'dizzy') return 'dizzy';
-  if (m === 'refuse') return 'shrug';
-  if (m === 'eat') return R.t > .7 ? 'eat' : 'idle';
+  if (m === 'act') return R.act.anim;
   if (m === 'play') return 'dance';
-  if (m === 'clean') return 'spin';
-  if (m === 'cheer') return 'celebrate';
   if (petting()) return 'pet';
   if (m === 'walk') return 'walk';
-  if (R.happy > 0) return 'happy';
   if (R.greet > 0) return 'wave';
-  return mood() === 'sad' ? 'sad' : 'idle';
+  return 'idle';
 }
 
-function drawClawd(cam) {
+function drawClawd() {
   if (!R.sheet) return;
-  const name = animFor(), mo = MANI.motions[name], sc = sz();
+  const name = animFor(), mo = MANI.motions[name], cam = R.cam;
   if (name !== R.anim) { R.anim = name; R.animT0 = R.time; }
   const frame = Math.floor((((R.time - R.animT0) / mo.dur) % 1) * mo.frames);
-  const dw = CELLW * K * sc, dh = CELLH * K * sc;
-  const sx = R.x + R.ox - cam, fy = feetY() - R.hop;
-  const baseY = fy - (MANI.ch - 6) * MANI.scale * K * sc;
+  const dw = CELLW * K, dh = CELLH * K;
+  const sx = R.x + R.ox - cam, fy = feetY();
+  const baseY = fy - (MANI.ch - 6) * MANI.scale * K;
   ctx.imageSmoothingEnabled = S.look !== 'pixel';
   ctx.save();
   ctx.translate(Math.round(sx), 0);
   if (R.look < 0) ctx.scale(-1, 1);
   ctx.drawImage(R.sheet, frame * CELLW, mo.row * CELLH, CELLW, CELLH, Math.round(-dw / 2), Math.round(baseY), Math.round(dw), Math.round(dh));
+  // accessories ride on the baked anchors of this very frame: head top, eyes, body
+  const [hx, hy, bw, bh, ex, ey, ed, ang, vis] = MANI.anchors[name][frame];
+  const at = (ax, ay, a, size, nm, ox, oy) => {
+    ctx.save(); ctx.translate((ax - CELLW / 2) * K, baseY + ay * K); ctx.rotate(a);
+    ctx.drawImage(iconCanvas(nm, Math.round(size)), -size / 2 + (ox || 0), -size / 2 + (oy || 0), size, size);
+    ctx.restore();
+  };
+  if (S.body) at(hx, hy + bh * .72, vis ? ang : 0, bw * K * .42, 'body' + S.body);
+  if (S.face && vis) at(ex, ey + (S.face === 3 ? ed * .55 : 0), ang, ed * K * (S.face === 3 ? 1.3 : 2), 'face' + S.face);
+  if (S.hat) { const size = bw * K * .8; at(hx, hy, vis ? ang : 0, size, 'hat' + S.hat, 0, -size * (14 / 16 - .5) + size * .06); }
   ctx.restore();
-  return { top: fy - 74 * sc - (name === 'celebrate' ? 14 : 0), sx };
-}
-
-function drawBug(b, cam) {
-  icon('bug', b.x - cam, b.y + (Math.floor(b.ph) % 2), 16, b.dir < 0);
+  return { top: baseY + 36 * K - (name === 'celebrate' ? 14 : 0) - (S.hat ? bw * K * .8 : 0), sx };
 }
 
 function drawParticles(cam) {
@@ -508,7 +462,6 @@ function drawBubble(c) {
   const w = textW(text, size) + 16, h = 20;
   const bx = clamp(c.sx - w / 2, 4, W - w - 4), by = Math.max(TOP + 4, c.top - h - 8);
   box(bx, by, w, h);
-  // the tail points at Clawd
   const tx = clamp(c.sx, bx + 8, bx + w - 8);
   ctx.fillStyle = u.card; ctx.strokeStyle = STYLE().stroke || u.ink; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(tx - 4, by + h - 1); ctx.lineTo(tx, by + h + 6); ctx.lineTo(tx + 4, by + h - 1); ctx.fill();
@@ -517,53 +470,34 @@ function drawBubble(c) {
   txt(text, bx + w / 2, by + h / 2 + 1, { size, fill: u.ink, align: 'center' });
 }
 
-const barCol = v => v > 50 ? '#4cd964' : v > 25 ? '#ffcc00' : '#ff453a';
-function drawHUD() {
-  const u = ui();
-  strip(0, TOP, W, 36);
-  [['hunger', 'feed'], ['fun', 'play'], ['energy', 'sleep'], ['clean', 'clean']].forEach(([k, ic], i) => {
-    const x = 5 + i * 58;
-    icon(ic, x, TOP + 3, 13);
-    rect(x + 16, TOP + 6, 36, 6, 'rgba(0,0,0,.5)');
-    rect(x + 16, TOP + 6, 36 * S[k] / 100, 6, barCol(S[k]));
-  });
-  const st = stage(), days = Math.floor((Date.now() - S.born) / 864e5) + 1;
-  txt(STAGES[st] + ' · Tag ' + days, 5, TOP + 25, { size: 8, halo: true });
-  txt('v' + APP_VERSION + ' ' + R.storageTag, W - 5, TOP + 25, { size: 7, halo: true, align: 'right', alpha: .7 });
-  const lo = XP_AT[st], hi = XP_AT[st + 1];
-  rect(0, TOP + 34, W, 2, 'rgba(0,0,0,.45)');
-  rect(0, TOP + 34, W * (hi ? clamp((S.xp - lo) / (hi - lo), 0, 1) : 1), 2, u.acc);
-}
-
-const ITEM_W = W / 5;
+const ITEM_W = W / 4;
+const MENU_LABELS = () => ['Spiel', R.sleeping ? 'Wecken' : 'Schlaf', 'Sachen', 'Welt'];
 function drawMenu() {
-  const u = ui();
   strip(0, MENU_Y, W, H - MENU_Y);
-  const busy = !R.sleeping && busyNow();
-  const labels = ['Essen', 'Spiel', R.sleeping ? 'Wecken' : 'Schlaf', 'Putzen', 'Welt'];
-  for (let i = 0; i < 5; i++) {
+  const busy = !R.sleeping && busyNow(), labels = MENU_LABELS();
+  for (let i = 0; i < 4; i++) {
     const x = i * ITEM_W, sel = i === R.sel;
-    if (sel) { strip(x + 1, MENU_Y + 3, ITEM_W - 2, H - MENU_Y - 6, true); }
-    txt(labels[i], x + ITEM_W / 2, MENU_Y + (H - MENU_Y) / 2, { size: 9, maxW: ITEM_W - 6, halo: true, align: 'center', alpha: busy ? .4 : sel ? 1 : .8 });
+    if (sel) strip(x + 1, MENU_Y + 3, ITEM_W - 2, H - MENU_Y - 6, true);
+    txt(labels[i], x + ITEM_W / 2, MENU_Y + (H - MENU_Y) / 2, { size: 9, maxW: ITEM_W - 6, halo: true, align: 'center', alpha: busy && i < 2 ? .4 : sel ? 1 : .8 });
   }
 }
 
-const PANEL = { x: 12, y: 92, w: 216, h: 96 };
+const PANEL_X = 12, PANEL_W = 216, PANEL_Y = TOP + 6, ROW_H = 22;
+const panelH = () => 26 + PANELS[R.panel]().length * ROW_H + 8;
 function drawPanel() {
-  const u = ui(), p = PANEL;
-  box(p.x, p.y, p.w, p.h);
-  txt('Welt', p.x + p.w / 2, p.y + 15, { size: 10, fill: u.ink, align: 'center' });
-  const rows = [['Ort', SCENE_DE[S.scene]], ['Stil', LOOK_DE[S.look] || S.look]];
+  const u = ui(), rows = PANELS[R.panel](), h = panelH();
+  box(PANEL_X, PANEL_Y, PANEL_W, h);
+  txt(R.panel === 'world' ? 'Welt' : 'Sachen', PANEL_X + PANEL_W / 2, PANEL_Y + 13, { size: 10, fill: u.ink, align: 'center' });
   rows.forEach(([k, v], i) => {
-    const y = p.y + 26 + i * 28, on = i === R.prow;
-    if (on) { ctx.globalAlpha = .16; rect(p.x + 8, y, p.w - 16, 24, u.ink); ctx.globalAlpha = 1; rect(p.x + 8, y + 22, p.w - 16, 2, u.ink); }
-    txt(k, p.x + 14, y + 6, { size: 7, fill: u.ink, alpha: on ? .9 : .55 });
-    txt(on ? '‹  ' + v + '  ›' : v, p.x + p.w / 2, y + 14, { size: 10, fill: u.ink, align: 'center', alpha: on ? 1 : .6 });
+    const y = PANEL_Y + 24 + i * ROW_H, on = i === R.prow;
+    if (on) { ctx.globalAlpha = .16; rect(PANEL_X + 8, y, PANEL_W - 16, ROW_H - 2, u.ink); ctx.globalAlpha = 1; rect(PANEL_X + 8, y + ROW_H - 4, PANEL_W - 16, 2, u.ink); }
+    txt(k, PANEL_X + 14, y + 6, { size: 7, fill: u.ink, alpha: on ? .9 : .55 });
+    txt(on ? '‹  ' + v + '  ›' : v, PANEL_X + PANEL_W / 2, y + 10, { size: 9, fill: u.ink, align: 'center', alpha: on ? 1 : .6 });
   });
 }
 
 function draw() {
-  const cam = camX(), u = ui();
+  const cam = R.cam;
   // scenery over the full height; its bottom row is stretched down to the screen edge
   if (R.bg) {
     ctx.imageSmoothingEnabled = S.look !== 'pixel';
@@ -572,30 +506,17 @@ function draw() {
     if (BGH - BG_YOFF < H) ctx.drawImage(R.bg, cam * k, ih - 1, W * k, 1, 0, BGH - BG_YOFF - 1, W, H - (BGH - BG_YOFF) + 1);
   } else rect(0, 0, W, H, '#101018');
 
-  const fy = feetY();
-  for (const b of R.bugs) if (b.y < fy) drawBug(b, cam);
-  const c = drawClawd(cam);
-  for (const b of R.bugs) if (b.y >= fy) drawBug(b, cam);
-
-  const sc = sz();
-  if (R.mode === 'eat') {
-    const t = R.t, b = t < .7 ? 0 : Math.floor((t - .7) / .4) + 1;
-    if (b < 5) {
-      const size = [26, 26, 18, 18, 10][b], my = fy - 44 * sc - size / 2;
-      icon('feed', R.x - cam - size / 2, t < .7 ? 80 + (my - 80) * (t / .7) : my, size);
-    }
-  } else if (R.mode === 'play') {
+  const fy = feetY(), c = drawClawd();
+  if (R.mode === 'play') {
     const T = .7, uu = (R.t % T) / T;
-    icon('play', R.x - cam - 10, fy - 80 * sc - 20 - Math.sin(Math.PI * uu) * 58, 20);
-  } else if (R.mode === 'clean') {
-    rect(R.sweep - cam, floorY(), 3, MENU_Y - floorY(), 'rgba(255,255,255,.7)');
+    icon('play', R.x - cam - 10, fy - 100 - Math.sin(Math.PI * uu) * 58, 20);
   }
   drawParticles(cam);
   drawAmbient(cam);
   drawBubble(c);
 
   if (R.dim > .01) { ctx.globalAlpha = R.dim; rect(0, 0, W, H, '#05060f'); ctx.globalAlpha = 1; }
-  drawHUD();
+  txt('v' + APP_VERSION + ' ' + R.storageTag, W - 5, TOP + 8, { size: 7, halo: true, align: 'right', alpha: .6 });
   drawMenu();
   if (R.panel) drawPanel();
   if (!R.bg || !R.sheet || !ready) {
@@ -636,54 +557,42 @@ let saveTimer = 0;
 function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); }
 function saveNow() {
   if (!ready) return;
-  S.last = Date.now();
   const s = enc(S);
   try { localStorage.setItem(KEY, s); } catch (e) {}
   try { if (CS) Promise.resolve(CS.setItem(KEY, s)).catch(() => {}); } catch (e) {}
 }
-setInterval(saveNow, 5000);
 window.addEventListener('pagehide', saveNow);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
 
 async function boot() {
   requestAnimationFrame(frame);
   loadWorld();                          // start fetching the default scenery right away
-  try { document.fonts.load('bold 9px Monocraft'); } catch (e) {}
-  ICACHE_RESET();
   const s = await loadState();
   if (s) {
-    const num = (v, d) => (Number.isFinite(v) ? v : d);
-    const el = clamp((Date.now() - num(s.last, Date.now())) / 1000, 0, 6 * 3600);
-    // time away: slower decay, never below 15 so Clawd is only sad, never lost
-    const off = (v, r) => Math.max(Math.min(v, 15), v - r * el * 0.6);
-    S.hunger = off(clamp(num(s.hunger, 70), 0, 100), 0.016);
-    S.fun = off(clamp(num(s.fun, 70), 0, 100), 0.014);
-    S.clean = off(clamp(num(s.clean, 80), 0, 100), 0.011);
-    S.energy = clamp(num(s.energy, 80), 0, 100);
-    S.xp = Math.max(0, num(s.xp, 0));
-    S.born = num(s.born, Date.now());
     if (SCENES.includes(s.scene)) S.scene = s.scene;
     if (LOOKS.some(l => l.name === s.look)) S.look = s.look;
+    if (s.hat >= 0 && s.hat < HATS.length) S.hat = s.hat | 0;
+    if (s.face >= 0 && s.face < FACES.length) S.face = s.face | 0;
+    if (s.body >= 0 && s.body < BODIES.length) S.body = s.body | 0;
+    if (Number.isFinite(s.born)) S.born = s.born;
     loadWorld();
-    say(el > 1800 ? 'Du warst lange weg!' : 'Hallo wieder!', 2.5);
-  } else {
-    say('Hallo, ich bin Clawd!', 3);
   }
-  ready = true; syncBugs(); saveNow();
+  say(s ? 'Hallo wieder!' : 'Hallo, ich bin Clawd!', 2.5);
+  ready = true; R.lastTouch = R.time; saveNow();
 }
 
 // ---------- input ----------
-const stepSel = d => { R.sel = (R.sel + d + 5) % 5; };
-window.addEventListener('scrollUp', () => { if (R.panel) changeWorld(-1); else stepSel(-1); });
-window.addEventListener('scrollDown', () => { if (R.panel) changeWorld(1); else stepSel(1); });
+const stepSel = d => { R.sel = (R.sel + d + 4) % 4; };
+window.addEventListener('scrollUp', () => { touched(); if (R.panel) changePanel(-1); else stepSel(-1); });
+window.addEventListener('scrollDown', () => { touched(); if (R.panel) changePanel(1); else stepSel(1); });
 window.addEventListener('sideClick', () => {
   const n = performance.now();
   if (n - R.lastClick < 250) return;   // a double click arrives as two events ~50 ms apart
-  R.lastClick = n;
-  if (R.panel) { if (R.prow === 0) R.prow = 1; else closePanel(); return; }
+  R.lastClick = n; touched();
+  if (R.panel) { if (R.prow < PANELS[R.panel]().length - 1) R.prow++; else closePanel(); return; }
   act(R.sel);
 });
-window.addEventListener('longPressStart', () => { if (R.panel) closePanel(); else R.hold = true; });
+window.addEventListener('longPressStart', () => { touched(); if (R.panel) closePanel(); else if (R.sleeping) wake(false); else R.hold = true; });
 window.addEventListener('longPressEnd', () => { R.hold = false; });
 
 function pos(e) {
@@ -691,22 +600,27 @@ function pos(e) {
   return [(t.clientX - r.left) * W / r.width, (t.clientY - r.top) * H / r.height];
 }
 function down(e) {
-  e.preventDefault();
+  e.preventDefault(); touched();
   const [x, y] = pos(e);
   if (R.panel) {
-    const p = PANEL;
-    if (x < p.x || x > p.x + p.w || y < p.y || y > p.y + p.h) return closePanel();
-    const row = Math.floor((y - p.y - 26) / 28);
-    if (row === 0 || row === 1) { R.prow = row; changeWorld(x < W / 2 ? -1 : 1); }
+    const rows = PANELS[R.panel]().length, h = panelH();
+    if (x < PANEL_X || x > PANEL_X + PANEL_W || y < PANEL_Y || y > PANEL_Y + h) return closePanel();
+    const row = Math.floor((y - PANEL_Y - 24) / ROW_H);
+    if (row >= 0 && row < rows) { R.prow = row; changePanel(x < W / 2 ? -1 : 1); }
     return;
   }
-  if (y >= MENU_Y) { R.sel = clamp(Math.floor(x / ITEM_W), 0, 4); act(R.sel); return; }
-  const sc = sz(), sx = R.x - camX();
-  if (Math.abs(x - sx) < 40 * sc && y > feetY() - 84 * sc && y < feetY() + 6) {
-    if (R.sleeping) wake(true); else R.touchPet = true;
-  }
+  if (y >= MENU_Y) { R.sel = clamp(Math.floor(x / ITEM_W), 0, 3); act(R.sel); return; }
+  const sx = R.x - R.cam, fy = feetY();
+  if (Math.abs(x - sx) < 44 && y > fy - 100 && y < fy + 8) { R.touchPet = true; R.touchT = R.time; R.touchX = x; return; }
+  // a tap on the scenery: Clawd walks over there
+  if (R.sleeping) return wake(false);
+  if (!busyNow() || R.mode === 'walk') { R.target = clamp(R.cam + x, 40, BGW - 40); setMode('walk'); R.look = Math.sign(R.target - R.x) || R.look; }
 }
-function up(e) { e.preventDefault(); R.touchPet = false; }
+function up(e) {
+  e.preventDefault();
+  if (R.touchPet && R.time - R.touchT <= .25) tapReact();
+  R.touchPet = false;
+}
 document.body.addEventListener('touchstart', down, { passive: false });
 document.body.addEventListener('touchend', up, { passive: false });
 document.body.addEventListener('touchcancel', up, { passive: false });
@@ -719,9 +633,9 @@ function onAccel(d) {
   if (R.prev) R.jerk += Math.abs(x - R.prev[0]) + Math.abs(y - R.prev[1]) + Math.abs(z - R.prev[2]);
   R.prev = [x, y, z];
   if (R.jerk > 2.5 && R.shakeCool <= 0 && ready && !R.panel) {
-    R.shakeCool = 4; R.jerk = 0;
+    R.shakeCool = 4; R.jerk = 0; touched();
     if (R.sleeping) wake(true);
-    else if (R.mode === 'idle' || R.mode === 'walk') { S.fun = Math.min(100, S.fun + 5); setMode('dizzy'); }
+    else if (R.mode === 'idle' || R.mode === 'walk') { setMode('dizzy'); say('Uff… schwindlig'); }
   }
 }
 (async function initSensors() {
