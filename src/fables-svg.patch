@@ -1,5 +1,5 @@
 --- /home/user/claude-fables-plugin/hooks/svg.ts	2026-10-02 22:13:48.522046503 +0000
-+++ hooks/svg.ts	2026-10-02 22:15:40.160866674 +0000
++++ hooks/svg.ts	2026-10-03 00:08:50.653548503 +0000
 @@ -4,7 +4,7 @@
  import { type HeroPainter, motionSvg } from './hero3d'
  import { gradeFilter } from './grade'
@@ -49,11 +49,11 @@
 +    stage.back +
 +    `<rect x="${-sw * 4}" y="${stage.groundTop}" width="${sw * 9}" height="${H * 4}" fill="${ground}"/>` +
 +    stage.near +
-+    stage.lens +
++    // no vignette and no frame: the picture is tiled (mirrored) into an endless world, so its edges must stay plain
++    stage.lens.replace(/<rect[^>]*sc-vignette[^>]*\/>/g, '') +
 +    (grade ? '</g>' : '') +
 +    (pixelArt ? '</g>' : '') +
 +    (look.texture?.(sw, H, GROUND_Y, pixelArt) ?? '') +
-+    (look.frame?.(sw, H, GROUND_Y) ?? '') +
 +    `</svg>`
 +  return { svg, floor: stage.floor }
 +}

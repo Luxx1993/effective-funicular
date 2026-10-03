@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.12.0';
+const APP_VERSION = '0.12.1';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -807,9 +807,9 @@ function draw() {
     const iw = R.bg.naturalWidth, ih = R.bg.naturalHeight, y0 = BG_YOFF * iw / BGW, sh = ih - y0;
     // endless: the picture, then its mirror image, then the picture again, ...
     for (let t = Math.floor(R.cam / WORLD); t * WORLD < R.cam + W; t++) {
-      const x = Math.round(t * WORLD - R.cam), odd = ((t % 2) + 2) % 2 === 1;
-      if (odd) { ctx.save(); ctx.translate(x + Math.round(WORLD), 0); ctx.scale(-1, 1); ctx.drawImage(R.bg, 0, y0, iw, sh, 0, 0, Math.round(WORLD), H); ctx.restore(); }
-      else ctx.drawImage(R.bg, 0, y0, iw, sh, x, 0, Math.round(WORLD), H);
+      const x0 = Math.round(t * WORLD - R.cam), w = Math.round((t + 1) * WORLD - R.cam) - x0, odd = ((t % 2) + 2) % 2 === 1;   // tiles abut exactly: no gap, no overlap
+      if (odd) { ctx.save(); ctx.translate(x0 + w, 0); ctx.scale(-1, 1); ctx.drawImage(R.bg, 0, y0, iw, sh, 0, 0, w, H); ctx.restore(); }
+      else ctx.drawImage(R.bg, 0, y0, iw, sh, x0, 0, w, H);
     }
   } else rect(0, 0, W, H, '#101018');
 
