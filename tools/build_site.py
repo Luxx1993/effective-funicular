@@ -80,7 +80,7 @@ a {{ color:var(--accent); }} .qr {{ background:#fff; border-radius:6px; }}
 choose &ldquo;add via QR code&rdquo; and scan its code.</p>
 <ul>
 {items}</ul>
-<p><a href="https://github.com/Luxx1993/effective-funicular">Source &amp; docs on GitHub</a></p>
+<p><a href="https://github.com/Luxx1993/r1-creations">Source &amp; docs on GitHub</a></p>
 </main></body></html>
 """
 open(os.path.join(a.out, "index.html"), "w").write(page)

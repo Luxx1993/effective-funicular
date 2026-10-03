@@ -9,7 +9,7 @@ Sammlung kleiner Web-Apps („Creations“) für den Rabbit R1 (Bildschirm 240×
 | `main` | Übersichtsseite, Doku (`docs/r1-creations.md`), Werkzeuge (`tools/`), Deploy-Workflow |
 | `creation/<name>` | Eine Creation pro Branch (Dateien im Branch-Root) |
 
-Die Seite `https://luxx1993.github.io/effective-funicular/` listet alle Creations. Jede liegt unter
+Die Seite `https://luxx1993.github.io/r1-creations/` listet alle Creations. Jede liegt unter
 `/<name>/`, z. B. `/tally/`.
 
 ## Creations
@@ -24,7 +24,7 @@ Die Seite `https://luxx1993.github.io/effective-funicular/` listet alle Creation
 
 Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
 
-[![Install-QR für Tally – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/tally/qr.png)](https://github.com/Luxx1993/effective-funicular/tree/creation/tally)
+[![Install-QR für Tally – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/r1-creations/creation/tally/qr.png)](https://github.com/Luxx1993/r1-creations/tree/creation/tally)
 
 (Ein Klick auf das Bild öffnet den Branch `creation/tally` mit Screenshots und Beschreibung. Das Bild ist immer der aktuelle Code der Creation.)
 
@@ -32,7 +32,7 @@ Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
 
 Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
 
-[![Install-QR für Marble Maze – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/marble-maze/qr.png)](https://github.com/Luxx1993/effective-funicular/tree/creation/marble-maze)
+[![Install-QR für Marble Maze – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/r1-creations/creation/marble-maze/qr.png)](https://github.com/Luxx1993/r1-creations/tree/creation/marble-maze)
 
 Bedienung: Neigen = Kugel rollt, Drehregler = Tempo (1–10), Seitentaste = Neutrallage kalibrieren (Doppelklick = Y-Achse umkehren), langer Druck = Levelmenü.
 
@@ -40,9 +40,9 @@ Bedienung: Neigen = Kugel rollt, Drehregler = Tempo (1–10), Seitentaste = Neut
 
 Auf dem R1: Creations-Karte → „add via QR code“ → diesen Code scannen.
 
-[![Install-QR für Clawd – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/effective-funicular/creation/clawd/qr.png)](https://github.com/Luxx1993/effective-funicular/tree/creation/clawd)
+[![Install-QR für Clawd – Klick öffnet den Branch](https://raw.githubusercontent.com/Luxx1993/r1-creations/creation/clawd/qr.png)](https://github.com/Luxx1993/r1-creations/tree/creation/clawd)
 
-Demo-Video (30 s): [clawd-demo.mp4](https://luxx1993.github.io/effective-funicular/clawd/demo/clawd-demo.mp4)
+Demo-Video (30 s): [clawd-demo.mp4](https://luxx1993.github.io/r1-creations/clawd/demo/clawd-demo.mp4)
 
 Clawd ist ein Haustier ohne Pflege und ohne Level in einer endlosen Welt (keine Begrenzung nach links oder rechts): Er läuft von selbst durch die Szene, reagiert auf Berührung und schläft ein, wenn niemand da ist.
 
@@ -58,8 +58,8 @@ Clawd ist ein Haustier ohne Pflege und ohne Level in einer endlosen Welt (keine 
 
 Clawd ist eine statische Seite (HTML, JavaScript und Bilder) und läuft in jedem normalen Browser, ohne Server und ohne den R1.
 
-- Online: `https://luxx1993.github.io/effective-funicular/clawd/index.html` (setzt voraus, dass GitHub Pages öffentlich erreichbar ist).
-- Lokal: `git clone -b creation/clawd --single-branch https://github.com/Luxx1993/effective-funicular.git clawd`, dann `index.html` im Browser öffnen (der Ordner `assets/` muss daneben liegen). Alternativ im Ordner `python3 -m http.server` starten und `http://localhost:8000/` öffnen.
+- Online: `https://luxx1993.github.io/r1-creations/clawd/index.html` (setzt voraus, dass GitHub Pages öffentlich erreichbar ist).
+- Lokal: `git clone -b creation/clawd --single-branch https://github.com/Luxx1993/r1-creations.git clawd`, dann `index.html` im Browser öffnen (der Ordner `assets/` muss daneben liegen). Alternativ im Ordner `python3 -m http.server` starten und `http://localhost:8000/` öffnen.
 - Bedienung: Pfeiltasten = Drehregler (hoch/links und runter/rechts sind die beiden Drehrichtungen), Enter oder Leertaste = Seitentaste, `H` = streicheln, `O` = Ansicht in 90°-Schritten drehen, Maus = Touch (Klicken und Wischen).
 - Am Desktop fehlen die Sensoren (kein Schütteln, keine automatische Drehung), die Ansicht bleibt 240×282 px groß (Browser-Zoom hilft), der Spielstand liegt im `localStorage` des Browsers, und der Ton startet erst nach dem ersten Klick oder Tastendruck.
 - Weiterentwickeln: `index.html` ist generiert. Der Quelltext liegt in `src/index.src.html`, `python3 src/build.py` baut `index.html` und die versionierte Datei neu. Die Bilder entstehen mit dem Generator in `src/` aus dem Claude-Fables-Plugin (siehe `src/README.md`). Beim Weitergeben die Lizenzen beachten: Claudes 3D-Modell von ChetasLua (MIT) und die Schrift Monocraft (OFL).
@@ -71,7 +71,7 @@ git checkout -b creation/<name> main
 # index.html, icon.png (96x96), creation.json anlegen
 pip install pillow qrcode
 python3 tools/make_qr.py --title "<Titel>" --description "<Text>" \
-  --url https://luxx1993.github.io/effective-funicular/<name>/index.html
+  --url https://luxx1993.github.io/r1-creations/<name>/index.html
 git add -A && git commit -m "Add <name>" && git push -u origin creation/<name>
 ```
 
