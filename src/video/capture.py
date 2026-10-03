@@ -46,6 +46,8 @@ async def main():
         await pg.clock.pause_at(datetime.datetime(2026,10,3,14,31))
         for _ in range(40): await pg.clock.run_for(50)
         await pg.wait_for_function("ready && R.bg && R.sheet")
+        # no version tag in the video: skip just that one text
+        await pg.evaluate("(() => { const t0 = txt; txt = (s, ...a) => { if (String(s).startsWith('v' + APP_VERSION)) return; t0(s, ...a); }; })()")
         prev=0
         for f in range(N):
             for js in JS.get(f, []):
