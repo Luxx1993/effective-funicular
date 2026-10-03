@@ -2,7 +2,7 @@ import asyncio, glob, os, io
 from playwright.async_api import async_playwright
 from PIL import Image
 SP='/tmp/claude-0/-home-user/fcbf269f-66c5-531f-8bdf-656945e2957d/scratchpad/'
-OUT='/home/user/effective-funicular/assets/'
+OUT='/home/user/r1-creations/assets/'
 async def main():
     async with async_playwright() as p:
         b=await p.chromium.launch(executable_path='/opt/pw-browsers/chromium')

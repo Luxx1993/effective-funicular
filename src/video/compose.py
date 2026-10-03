@@ -60,7 +60,7 @@ def wrap(text, font, width, draw):
         if draw.textlength(test, font=font) <= width: line = test
         else: out.append(line); line = w_
     out.append(line); return out
-qr = Image.open('/home/user/effective-funicular/qr.png').convert('RGB').resize((260, 260), Image.NEAREST)
+qr = Image.open('/home/user/r1-creations/qr.png').convert('RGB').resize((260, 260), Image.NEAREST)
 fT, fS, fH, fB, fSm = F(MB, 120), F(SANS, 38), F(MB, 64), F(SANS, 36), F(SANS, 26)
 ease = lambda x: 0 if x <= 0 else 1 if x >= 1 else x * x * (3 - 2 * x)
 
@@ -84,7 +84,7 @@ def text_layer(t):
             L.paste(Image.merge('RGBA', (*qr.split(), Image.new('L', qr.size, al))), (TX, y + 210))
             dr.text((TX + 290, y + 290), 'Läuft auch im Browser:', font=fSm, fill=(150, 144, 138, al))
             dr.text((TX + 290, y + 326), 'luxx1993.github.io/', font=fSm, fill=(205, 198, 190, al))
-            dr.text((TX + 290, y + 362), 'effective-funicular/clawd', font=fSm, fill=(205, 198, 190, al))
+            dr.text((TX + 290, y + 362), 'r1-creations/clawd', font=fSm, fill=(205, 198, 190, al))
     # progress (it gives way to the QR code at the end)
     pa = int(255 * (1 - ease((t - 26.8) / .4)))
     if pa <= 0: return L

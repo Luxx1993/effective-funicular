@@ -42,7 +42,7 @@ async def main():
         pg=await ctx.new_page()
         errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)))
         await pg.clock.install(time=datetime.datetime(2026,10,3,14,30))
-        await pg.goto('file:///home/user/effective-funicular/index.html')
+        await pg.goto('file:///home/user/r1-creations/index.html')
         await pg.clock.pause_at(datetime.datetime(2026,10,3,14,31))
         for _ in range(40): await pg.clock.run_for(50)
         await pg.wait_for_function("ready && R.bg && R.sheet")

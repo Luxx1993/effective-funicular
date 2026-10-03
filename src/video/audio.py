@@ -47,7 +47,7 @@ async def main():
         b = await p.chromium.launch(executable_path='/opt/pw-browsers/chromium')
         pg = await b.new_page(viewport={'width':240,'height':282})
         errs=[]; pg.on('pageerror',lambda e:errs.append(str(e)))
-        await pg.goto('file:///home/user/effective-funicular/index.html')
+        await pg.goto('file:///home/user/r1-creations/index.html')
         await pg.wait_for_function("ready")
         data = base64.b64decode(await pg.evaluate(JS))
         with wave.open('audio.wav','wb') as w:
