@@ -18,7 +18,7 @@
 <script>
 // Clawd, a pet diorama. Scenery, styles and Clawd's animations come from the
 // Claude Fables plugin (baked to images by src/r1assets.ts).
-const APP_VERSION = '0.12.1';
+const APP_VERSION = '0.12.2';
 const KEY = 'clawd:state';          // namespaced: all creations share one origin
 const MANI = /*@MANI@*/null;
 const LOOKS = /*@LOOKS@*/null;
@@ -816,7 +816,7 @@ function draw() {
   const fy = feetY(), c = drawClawd();
   if (R.mode === 'play') {
     const T = .7, uu = (R.t % T) / T;
-    icon('play', R.x - cam - 10, fy - 100 - Math.sin(Math.PI * uu) * 58, 20);
+    icon('play', R.x - cam - 10, (c ? c.top : fy - 100) - 20 - Math.sin(Math.PI * uu) * 50, 20);   // above the head, hat included
   }
   if (R.mode === 'rope' && c) {               // the skipping rope: round the head, under the feet
     const ph = Math.cos(2 * Math.PI * c.u), reach = (fy - c.hy) * 2.3, cyc = c.hy - ph * reach * (ph > 0 ? .9 : 1);
